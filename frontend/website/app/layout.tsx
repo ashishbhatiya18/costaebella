@@ -4,6 +4,7 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import JsonLd from "@/components/JsonLd";
+import WhatsAppButton from "@/components/WhatsAppButton";
 import { getBusiness } from "@/lib/data";
 import { buildRestaurantSchema } from "@/lib/structured-data";
 
@@ -76,6 +77,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Nav businessName={business.name} />
         <main className="flex-1">{children}</main>
         <Footer />
+        <WhatsAppButton phone={business.contact.phone_primary} businessName={business.name} />
       </body>
     </html>
   );

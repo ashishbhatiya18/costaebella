@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getBusiness } from "@/lib/data";
+import { buildWhatsAppUrl } from "@/components/WhatsAppButton";
 
 export function generateMetadata(): Metadata {
   const business = getBusiness();
@@ -44,11 +45,19 @@ export default function ContactPage() {
               {business.contact.phone_primary}
             </a>
           </p>
-          <p className="text-navy/70 text-sm">
+          <p className="text-navy/70 text-sm mb-3">
             <a href={`tel:${business.contact.phone_secondary.replace(/\s/g, "")}`} className="hover:underline">
               {business.contact.phone_secondary}
             </a>
           </p>
+          <a
+            href={buildWhatsAppUrl(business.contact.phone_primary, `Hi ${business.name}! I'd like to know more.`)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-teal text-sm font-medium hover:underline"
+          >
+            Chat on WhatsApp →
+          </a>
         </div>
 
         <div className="bg-teal/5 rounded-2xl p-6 border border-navy/5">

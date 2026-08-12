@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getBusiness } from "@/lib/data";
+import { buildWhatsAppUrl } from "@/components/WhatsAppButton";
 
 export function generateMetadata(): Metadata {
   const business = getBusiness();
@@ -38,9 +39,17 @@ export default function ReservationsPage() {
             {business.contact.phone_secondary}
           </a>
         </p>
-        <p className="text-navy/50 text-xs mt-6">
+        <p className="text-navy/50 text-xs mt-6 mb-4">
           Open daily {business.hours.monday_to_sunday}
         </p>
+        <a
+          href={buildWhatsAppUrl(business.contact.phone_primary, `Hi ${business.name}! I'd like to reserve a table.`)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          Chat on WhatsApp
+        </a>
       </div>
     </div>
   );

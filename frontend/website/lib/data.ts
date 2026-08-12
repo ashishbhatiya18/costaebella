@@ -36,6 +36,9 @@ export interface Business {
     method: string;
     note: string;
   };
+  analytics: {
+    gtm_id: string;
+  };
 }
 
 export interface MenuItem {

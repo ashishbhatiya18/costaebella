@@ -32,3 +32,7 @@ hours:
 reservations:
   method: "phone"
   note: "Reservations are currently taken over the phone only. Call us to book your table."
+
+analytics:
+  # Google Tag Manager container ID. Leave blank to disable GTM entirely.
+  gtm_id: "GTM-MH2BSL2P"

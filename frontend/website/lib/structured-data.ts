@@ -45,6 +45,7 @@ export function buildRestaurantSchema(business: Business) {
       streetAddress: business.address.line1,
       addressLocality: "Kalyan",
       addressRegion: "Maharashtra",
+      postalCode: business.address.postal_code,
       addressCountry: "IN",
     },
     hasMap: business.address.google_maps_url,

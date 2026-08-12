@@ -26,6 +26,7 @@ export interface Business {
     line1: string;
     line2: string;
     plus_code: string;
+    postal_code: string;
     google_maps_url: string;
   };
   hours: {

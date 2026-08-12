@@ -49,6 +49,31 @@ export default function Home() {
         <p className="text-navy/80 leading-relaxed text-lg">{business.description}</p>
       </section>
 
+      <section className="mx-auto max-w-6xl px-5 pb-20">
+        <div className="text-center mb-10">
+          <h2 className="font-display text-3xl text-navy mb-3">From the Kitchen</h2>
+          <p className="text-navy/70">A taste of what's on the menu.</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          {gallery.food.slice(0, 4).map((photo) => (
+            <div
+              key={photo.src}
+              className="relative aspect-square rounded-2xl overflow-hidden border border-navy/10"
+            >
+              <Image src={photo.src} alt={photo.alt} fill className="object-cover" />
+            </div>
+          ))}
+        </div>
+        <div className="text-center">
+          <Link
+            href="/gallery"
+            className="inline-block text-teal text-sm font-medium hover:underline"
+          >
+            See more photos →
+          </Link>
+        </div>
+      </section>
+
       <section className="bg-teal/5 py-20">
         <div className="mx-auto max-w-6xl px-5 grid gap-6 sm:grid-cols-3 text-center">
           <div className="bg-cream rounded-2xl p-8 shadow-sm border border-navy/5">

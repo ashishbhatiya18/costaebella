@@ -78,6 +78,9 @@ const VARIANT_LABELS: Record<string, string> = {
 };
 
 export function buildMenuSchema(menu: MenuData, business: Business) {
+  const absoluteImage = (image?: string) =>
+    image ? `${business.site_url}${image}` : undefined;
+
   const buildSections = (categories: MenuData["coffee"]) =>
     categories.map((cat) => ({
       "@type": "MenuSection",
@@ -89,6 +92,7 @@ export function buildMenuSchema(menu: MenuData, business: Business) {
               "@type": "MenuItem",
               name: item.name,
               description: item.description,
+              image: absoluteImage(item.image),
               offers: priceToOffer(item.price),
             },
           ];
@@ -98,6 +102,7 @@ export function buildMenuSchema(menu: MenuData, business: Business) {
             "@type": "MenuItem",
             name: `${item.name} (${VARIANT_LABELS[variant] ?? variant})`,
             description: item.description,
+            image: absoluteImage(item.image),
             offers: priceToOffer(price),
           }));
         }

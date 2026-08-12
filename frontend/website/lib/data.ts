@@ -45,6 +45,7 @@ export interface MenuItem {
   description?: string;
   special?: string;
   note?: string;
+  image?: string;
 }
 
 export interface MenuCategory {
@@ -60,6 +61,7 @@ export interface MenuData {
 
 export interface GalleryData {
   photos: { src: string; alt: string }[];
+  food: { src: string; alt: string }[];
 }
 
 export function getBusiness(): Business {

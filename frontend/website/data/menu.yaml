@@ -212,6 +212,7 @@ food:
     items:
       - name: "Pesto Pasta"
         prices: { veg: 399, chicken: 479 }
+        image: "/images/food/food-pesto-pasta.jpg"
       - name: "Aglio Olio"
         prices: { veg: 345, chicken: 429, prawns: 523 }
       - name: "Xacuti Pasta"
@@ -247,6 +248,7 @@ food:
         prices: { veg: 249, egg: 279, chicken: 329, prawns: 458 }
       - name: "Burnt Garlic Rice"
         prices: { veg: 269, egg: 299, chicken: 349 }
+        image: "/images/food/food-burnt-garlic-rice-1.jpg"
       - name: "Schezwan Fried Rice"
         prices: { veg: 279, egg: 309 }
 
@@ -267,6 +269,7 @@ food:
         price: 249
       - name: "Chocolate Churros"
         price: 279
+        image: "/images/food/food-chocolate-churros.jpg"
 
 # Original menu images, shown alongside the structured data above.
 images:

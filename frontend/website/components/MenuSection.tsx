@@ -13,7 +13,7 @@ export default function MenuSection({ categories }: { categories: MenuCategory[]
   return (
     <div className="space-y-14">
       {categories.map((cat) => (
-        <div key={cat.category}>
+        <div key={cat.category} data-gtm-event="view_menu_category" data-gtm-label={cat.category}>
           <h3 className="font-display text-2xl text-teal mb-6 border-b border-teal/20 pb-2">
             {cat.category}
           </h3>

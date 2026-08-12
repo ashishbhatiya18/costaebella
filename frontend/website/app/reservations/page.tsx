@@ -27,6 +27,7 @@ export default function ReservationsPage() {
         <a
           href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`}
           data-gtm-event="call_click"
+          data-gtm-location="reservations_page"
           className="font-display text-3xl text-navy hover:text-teal transition-colors"
         >
           {business.contact.phone_primary}
@@ -36,6 +37,7 @@ export default function ReservationsPage() {
           <a
             href={`tel:${business.contact.phone_secondary.replace(/\s/g, "")}`}
             data-gtm-event="call_click"
+            data-gtm-location="reservations_page"
             className="hover:underline"
           >
             {business.contact.phone_secondary}
@@ -49,6 +51,7 @@ export default function ReservationsPage() {
           target="_blank"
           rel="noopener noreferrer"
           data-gtm-event="whatsapp_click"
+          data-gtm-location="reservations_page"
           className="inline-flex items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
         >
           Chat on WhatsApp

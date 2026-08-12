@@ -18,7 +18,13 @@ export default function Nav({ businessName }: { businessName: string }) {
   return (
     <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-navy/10">
       <div className="mx-auto max-w-6xl px-5 flex items-center justify-between h-16">
-        <Link href="/" className="font-display text-xl text-navy tracking-wide">
+        <Link
+          href="/"
+          data-gtm-event="nav_click"
+          data-gtm-label="Logo"
+          data-gtm-location="header"
+          className="font-display text-xl text-navy tracking-wide"
+        >
           {businessName}
         </Link>
 
@@ -27,6 +33,9 @@ export default function Nav({ businessName }: { businessName: string }) {
             <Link
               key={link.href}
               href={link.href}
+              data-gtm-event="nav_click"
+              data-gtm-label={link.label}
+              data-gtm-location="desktop_nav"
               className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
             >
               {link.label}
@@ -38,6 +47,7 @@ export default function Nav({ businessName }: { businessName: string }) {
           className="md:hidden text-navy"
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
+          data-gtm-event="nav_toggle"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path
@@ -56,6 +66,9 @@ export default function Nav({ businessName }: { businessName: string }) {
             <Link
               key={link.href}
               href={link.href}
+              data-gtm-event="nav_click"
+              data-gtm-label={link.label}
+              data-gtm-location="mobile_nav"
               className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
               onClick={() => setOpen(false)}
             >

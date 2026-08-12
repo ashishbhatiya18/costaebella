@@ -33,6 +33,7 @@ export default function ContactPage() {
             target="_blank"
             rel="noopener noreferrer"
             data-gtm-event="get_directions"
+            data-gtm-location="contact_page"
             className="text-teal text-sm font-medium hover:underline"
           >
             Get Directions →
@@ -45,6 +46,7 @@ export default function ContactPage() {
             <a
               href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`}
               data-gtm-event="call_click"
+              data-gtm-location="contact_page"
               className="hover:underline"
             >
               {business.contact.phone_primary}
@@ -54,6 +56,7 @@ export default function ContactPage() {
             <a
               href={`tel:${business.contact.phone_secondary.replace(/\s/g, "")}`}
               data-gtm-event="call_click"
+              data-gtm-location="contact_page"
               className="hover:underline"
             >
               {business.contact.phone_secondary}
@@ -64,6 +67,7 @@ export default function ContactPage() {
             target="_blank"
             rel="noopener noreferrer"
             data-gtm-event="whatsapp_click"
+            data-gtm-location="contact_page"
             className="text-teal text-sm font-medium hover:underline"
           >
             Chat on WhatsApp →
@@ -75,6 +79,7 @@ export default function ContactPage() {
           <a
             href={`mailto:${business.contact.email}`}
             data-gtm-event="email_click"
+            data-gtm-location="contact_page"
             className="text-navy/70 text-sm hover:underline"
           >
             {business.contact.email}
@@ -88,6 +93,7 @@ export default function ContactPage() {
             target="_blank"
             rel="noopener noreferrer"
             data-gtm-event="instagram_click"
+            data-gtm-location="contact_page"
             className="text-navy/70 text-sm hover:underline"
           >
             @{business.contact.instagram_handle}

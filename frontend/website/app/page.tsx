@@ -31,6 +31,7 @@ export default function Home() {
             <Link
               href="/menu"
               data-gtm-event="view_menu"
+              data-gtm-location="home_hero"
               className="bg-coral text-cream px-6 py-3 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
             >
               View Menu
@@ -38,6 +39,7 @@ export default function Home() {
             <Link
               href="/reservations"
               data-gtm-event="reserve_table"
+              data-gtm-location="home_hero"
               className="border border-cream/60 text-cream px-6 py-3 rounded-full text-sm font-medium hover:bg-cream/10 transition-colors"
             >
               Reserve a Table
@@ -58,17 +60,23 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {gallery.food.slice(0, 4).map((photo) => (
-            <div
+            <Link
               key={photo.src}
-              className="relative aspect-square rounded-2xl overflow-hidden border border-navy/10"
+              href="/gallery"
+              data-gtm-event="food_photo_click"
+              data-gtm-label={photo.alt}
+              data-gtm-location="home"
+              className="relative aspect-square rounded-2xl overflow-hidden border border-navy/10 block"
             >
               <Image src={photo.src} alt={photo.alt} fill className="object-cover" />
-            </div>
+            </Link>
           ))}
         </div>
         <div className="text-center">
           <Link
             href="/gallery"
+            data-gtm-event="view_gallery"
+            data-gtm-location="home"
             className="inline-block text-teal text-sm font-medium hover:underline"
           >
             See more photos →
@@ -109,6 +117,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
           data-gtm-event="get_directions"
+          data-gtm-location="home_visit_section"
           className="inline-block bg-navy text-cream px-6 py-3 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
         >
           Get Directions

@@ -1,0 +1,10 @@
+# Gallery photos shown on the Gallery page.
+# Add new entries here as more photos become available.
+
+photos:
+  - src: "/images/restaurant/IMG_3385.jpg"
+    alt: "Costa e Bella restaurant interior"
+  - src: "/images/restaurant/IMG_3386.jpg"
+    alt: "Costa e Bella restaurant interior"
+  - src: "/images/restaurant/IMG_3387.jpg"
+    alt: "Costa e Bella restaurant interior"

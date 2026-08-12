@@ -1,0 +1,29 @@
+# Business information for Costa e Bella.
+# Edit this file to update contact details, hours, and links shown across the site.
+
+name: "Costa È Bella"
+tagline: "Where Goa meets Speciality Coffee"
+description: >
+  A taste of Goa in Kalyan, where coastal recipes, handcrafted coffee,
+  seafood specialties, and tropical vibes come together.
+
+contact:
+  phone_primary: "+91 98199 11137"
+  phone_secondary: "+91 77389 31473"
+  email: "costaebella@gmail.com"
+  instagram_handle: "costa_e_bella"
+  instagram_url: "https://www.instagram.com/costa_e_bella/"
+
+address:
+  line1: "Near Maxi Ground, Ram Ganesh Gadkari Road"
+  line2: "Rambaug, Kalyan West, Maharashtra"
+  plus_code: "64RQ+JR Kalyan, Maharashtra"
+  google_maps_url: "https://maps.app.goo.gl/GGJuAmTW1J3eJyVy6"
+
+hours:
+  # Same hours every day of the week.
+  monday_to_sunday: "12:00 PM - 11:00 PM"
+
+reservations:
+  method: "phone"
+  note: "Reservations are currently taken over the phone only. Call us to book your table."

@@ -1,0 +1,276 @@
+# Costa e Bella menu data.
+# Transcribed (OCR) from the printed menu images in /public/images/menu.
+# Prices are in INR (₹). Edit freely — the menu page reads this file directly.
+# Items with multiple variants (Veg / Chicken / Prawns / Egg / Fish) list a `prices` map;
+# a "-" on the printed menu (not available) is simply omitted from that item's prices.
+
+coffee:
+  - category: "Espresso Bar"
+    items:
+      - name: "Espresso"
+        price: 149
+        description: "A short and bold shot of espresso with rich aroma and intense flavour."
+      - name: "Cortado"
+        price: 157
+        description: "Espresso balanced with a touch of steamed milk for a smooth, round finish."
+      - name: "Macchiato"
+        price: 157
+        description: "Espresso topped with a small dollop of milk foam for a bold yet gentle taste."
+
+  - category: "Hot Coffees"
+    items:
+      - name: "Americano"
+        price: 179
+        description: "Espresso diluted with hot water for a smooth and classic coffee."
+      - name: "Cafe Latte"
+        price: 233
+        description: "Rich espresso with steamed milk for a smooth and creamy everyday classic."
+      - name: "Cappuccino"
+        price: 233
+        description: "Equal parts espresso, steamed milk and foam for a perfectly balanced cup."
+      - name: "Flat White"
+        price: 233
+        description: "Smooth espresso with velvety microfoam for a rich and creamy finish."
+      - name: "Mocha"
+        price: 296
+        description: "Espresso blended with chocolate and steamed milk for a rich treat."
+      - name: "Hot Chocolate"
+        price: 280
+        description: "Velvety chocolate made with rich cocoa and steamed milk."
+      - name: "Hazelnut Coffee"
+        price: 265
+        description: "Aromatic espresso with hazelnut flavour for a warm and nutty delight."
+      - name: "Irish Coffee"
+        price: 265
+        description: "Strong coffee with a hint of Irish whiskey and a touch of sweetness."
+      - name: "Vanilla Coffee"
+        price: 265
+        description: "Smooth vanilla infused coffee for a warm and comforting sip."
+
+  - category: "Frappe"
+    items:
+      - name: "Vanilla Frappe"
+        price: 324
+        description: "A creamy and smooth blend of vanilla syrup, milk and ice, topped with whipped cream for a classic, refreshing treat."
+      - name: "Caramel Popcorn Frappe"
+        price: 310
+        description: "Caramel and popcorn come together in this sweet and salty delight, blended with coffee, milk and ice, finished with a caramel drizzle."
+      - name: "Biscoff Frappe"
+        price: 400
+        description: "Rich Biscoff spread blended with coffee, milk and ice, topped with whipped cream and Biscoff crumbs for a luxurious indulgence."
+      - name: "Double Choco Chip Frappe"
+        price: 400
+        description: "A decadent blend of chocolate sauce, choco chips, coffee, milk and ice, topped with whipped cream and more choco chips."
+
+  - category: "Matcha"
+    items:
+      - name: "Clarified Matcha"
+        price: 345
+        description: "Pure ceremonial matcha, clarified and served clean for a smooth, earthy and umami-rich experience."
+      - name: "Tiramisu Latte"
+        price: 345
+        special: "chef's special"
+        description: "A luxurious blend of espresso, creamy milk, and tiramisu flavours for a rich and indulgent treat."
+      - name: "The Secret"
+        price: 210
+        description: "Say the password on the counter and get the drink."
+      - name: "Coconut Cloud Matcha"
+        price: 318
+        description: "Creamy coconut milk blended with ceremonial matcha for a light, tropical and soothing sip."
+      - name: "Berry Tonic Matcha"
+        price: 318
+        description: "Vibrant berries and tonic water layered with matcha for a fizzy, fruity and antioxidant-rich refreshment."
+      - name: "Strawberry Matcha"
+        price: 318
+        description: "Sweet strawberry puree and creamy milk paired with matcha for a luscious and vibrant blend."
+      - name: "Solkadi Matcha"
+        price: 318
+        description: "A Goan twist! Solkadi's tang meets earthy matcha for a refreshing, probiotic-rich and uniquely local fusion."
+      - name: "V60"
+        price: 199
+        description: "Pour-over brewed coffee using a cone-shaped dripper and paper filter for clean, rich flavours."
+      - name: "Cold Brew Sangria"
+        price: 210
+      - name: "Orange Cold Brew"
+        price: 210
+      - name: "Classic Cold Brew"
+        price: 189
+      - name: "Vietnamese Cold Brew"
+        price: 210
+
+  - category: "Cold Coffee"
+    items:
+      - name: "Iced Americano"
+        price: 189
+        description: "Smooth and bold espresso chilled over ice for a clean and refreshing coffee experience."
+      - name: "Iced Latte"
+        price: 235
+        description: "Rich espresso poured over ice with cold milk for a smooth and creamy everyday classic."
+      - name: "Iced Cappuccino"
+        price: 235
+        description: "A chilled cappuccino with bold espresso, cold milk and a light foam for the perfect balance."
+      - name: "Fridge Cigarette Espresso"
+        price: 310
+        description: "Bold espresso with a touch of sweetness, shaken with ice for a smooth, frothy and invigorating pick-me-up."
+      - name: "Shakrato"
+        price: 215
+        description: "Espresso shaken with ice and a touch of sweetener, served cold for a bright and refreshing kick."
+      - name: "Clarified Strawberry Cheesecake"
+        price: 285
+        description: "A creamy strawberry cheesecake flavour clarified for a smooth, light and indulgent coffee experience."
+
+  - category: "Mocktails (Coolers)"
+    items:
+      - name: "Spicy Moj Highball"
+        price: 289
+        description: "A bold and refreshing highball with spicy moj, citrus and a bubbly finish."
+      - name: "Spicy Coconut Mojito"
+        price: 307
+        description: "Coconut water, mint, lime and a hint of spice come together for a refreshing mojito with a coastal twist."
+      - name: "Solkadi"
+        price: 190
+        description: "A traditional Goan cooler made with kokum, coconut milk and aromatic spices. Tangy, creamy and incredibly refreshing."
+      - name: "Blue Hawaii"
+        price: 207
+        description: "A tropical blend of blue curacao, lime and pineapple juice."
+      - name: "Key Lime Pie"
+        price: 229
+        description: "Zesty lime, creamy sweetness and a touch of biscuit crumble flavour — just like your favourite dessert in a glass."
+      - name: "Cashew and Curry Sour"
+        price: 318
+        description: "A unique blend of cashew, curry leaf, citrus and spice shaken to perfection for a bold and vibrant sip."
+      - name: "Pesto Martini"
+        price: 249
+        description: "Herbaceous pesto, citrus and a touch of umami — perfectly sour and unconventional yet unforgettable."
+      - name: "Fresh Lime Soda"
+        price: 190
+        description: "Classic lime soda with a pinch of salt and a pinch of masala. Simple, crisp and perfect for any time."
+
+food:
+  - category: "To Begin"
+    items:
+      - name: "Manchow Soup"
+        prices: { veg: 219, chicken: 319 }
+      - name: "Sweet Corn & Truffle Soup"
+        prices: { veg: 249, chicken: 349 }
+
+  - category: "Goan Starters"
+    items:
+      - name: "Cafreal Bites / Poi"
+        prices: { veg: 249, chicken: 349 }
+      - name: "Chorizo Poi Sliders"
+        prices: { chicken: 399 }
+      - name: "Crispy Prawns Rawa Fry"
+        prices: { prawns: 549 }
+      - name: "Recheado Paneer Skewers"
+        prices: { veg: 329 }
+      - name: "Goan Potato Chops"
+        prices: { veg: 279 }
+
+  - category: "Chinese Starters"
+    items:
+      - name: "Honey Chilli Lotus Stem"
+        prices: { veg: 329 }
+      - name: "Barbecue Cottage Cheese"
+        prices: { veg: 359 }
+      - name: "Chicken Lollipop"
+        prices: { chicken: 389 }
+      - name: "Black Pepper Sauce"
+        prices: { veg: 279, chicken: 349 }
+      - name: "Chinese Chili"
+        prices: { veg: 269, chicken: 379 }
+      - name: "Garlic Butter Fry"
+        special: "chef's special"
+        note: "veg option is mushroom"
+        prices: { veg: 325, chicken: 389, prawns: 529 }
+      - name: "Mushroom Pepper Fry"
+        prices: { veg: 299 }
+      - name: "Crispy Calamari"
+        prices: { prawns: 549 }
+
+  - category: "Loaded Fries"
+    items:
+      - name: "Loaded Peri Peri Fries"
+        prices: { veg: 229 }
+      - name: "Chorizo Cheese Fries"
+        prices: { chicken: 349 }
+
+  - category: "Pizza (10 inches)"
+    items:
+      - name: "Margherita Pizza"
+        prices: { veg: 449 }
+      - name: "Pesto Pizza"
+        prices: { veg: 499, chicken: 579, prawns: 639 }
+      - name: "Goan Chorizo Pizza"
+        prices: { chicken: 599 }
+      - name: "Cafreal Pizza"
+        prices: { veg: 499, chicken: 579, prawns: 649 }
+      - name: "Recheado Pizza"
+        prices: { veg: 499, chicken: 579, prawns: 649 }
+
+  - category: "Pastas"
+    items:
+      - name: "Pesto Pasta"
+        prices: { veg: 399, chicken: 479 }
+      - name: "Aglio Olio"
+        prices: { veg: 345, chicken: 429, prawns: 523 }
+      - name: "Xacuti Pasta"
+        prices: { veg: 399, chicken: 499, prawns: 547 }
+      - name: "Balchao Pasta"
+        prices: { chicken: 479, prawns: 579 }
+
+  - category: "House Dips (45-60g)"
+    items:
+      - name: "Mango Relish"
+        price: 79
+      - name: "Mint Chutney"
+        price: 69
+      - name: "Balchao Mayo"
+        price: 79
+      - name: "Schezwan Chutney"
+        price: 69
+
+  - category: "Chinese Noodles"
+    items:
+      - name: "Hakka Noodles"
+        prices: { veg: 249, egg: 279, chicken: 329 }
+      - name: "Burnt Garlic Noodles"
+        prices: { veg: 269, egg: 299, chicken: 349 }
+      - name: "Schezwan Noodles"
+        prices: { veg: 279, egg: 309, chicken: 359 }
+      - name: "Triple Schezwan Noodles"
+        prices: { chicken: 449 }
+
+  - category: "Chinese Rice"
+    items:
+      - name: "Fried Rice"
+        prices: { veg: 249, egg: 279, chicken: 329, prawns: 458 }
+      - name: "Burnt Garlic Rice"
+        prices: { veg: 269, egg: 299, chicken: 349 }
+      - name: "Schezwan Fried Rice"
+        prices: { veg: 279, egg: 309 }
+
+  - category: "Rice Bowls"
+    items:
+      - name: "Cafreal Rice Bowl"
+        prices: { veg: 379, chicken: 499 }
+      - name: "Curry Rice"
+        prices: { veg: 379, chicken: 479, prawns: 647, fish: 499 }
+      - name: "Balchao Rice Bowl"
+        prices: { veg: 379, chicken: 549 }
+
+  - category: "Dessert"
+    items:
+      - name: "Bebinca with Ice Cream"
+        price: 299
+      - name: "Serradura Dessert Jar"
+        price: 249
+      - name: "Chocolate Churros"
+        price: 279
+
+# Original menu images, shown alongside the structured data above.
+images:
+  - src: "/images/menu/coffee-menu.jpg"
+    alt: "Costa e Bella coffee, matcha and mocktail menu"
+  - src: "/images/menu/food-menu-front.jpg"
+    alt: "Costa e Bella food menu - starters, pizza, pasta, Chinese and rice bowls"

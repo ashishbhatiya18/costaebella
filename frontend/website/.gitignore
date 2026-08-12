@@ -24,6 +24,17 @@
 .DS_Store
 *.pem
 
+# editors
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+
+# claude code local settings (machine-specific, not shared)
+.claude/settings.local.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*

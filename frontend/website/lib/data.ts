@@ -14,6 +14,7 @@ export interface Business {
   name: string;
   tagline: string;
   description: string;
+  site_url: string;
   contact: {
     phone_primary: string;
     phone_secondary: string;

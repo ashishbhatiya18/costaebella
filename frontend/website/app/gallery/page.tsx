@@ -1,10 +1,17 @@
 import Image from "next/image";
 import type { Metadata } from "next";
-import { getGallery } from "@/lib/data";
+import { getBusiness, getGallery } from "@/lib/data";
 
-export const metadata: Metadata = {
-  title: "Gallery | Costa e Bella",
-};
+export function generateMetadata(): Metadata {
+  const business = getBusiness();
+  const description = `Photos from inside and outside ${business.name}, our Goan continental and Chinese cafe in Kalyan West.`;
+  return {
+    title: "Gallery",
+    description,
+    alternates: { canonical: "/gallery" },
+    openGraph: { title: `Gallery | ${business.name}`, description, url: "/gallery" },
+  };
+}
 
 export default function GalleryPage() {
   const gallery = getGallery();

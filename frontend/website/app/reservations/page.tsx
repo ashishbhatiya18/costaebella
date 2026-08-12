@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import { getBusiness } from "@/lib/data";
 
-export const metadata: Metadata = {
-  title: "Reservations | Costa e Bella",
-};
+export function generateMetadata(): Metadata {
+  const business = getBusiness();
+  const description = `Reserve a table at ${business.name} by phone: ${business.contact.phone_primary}. Open daily ${business.hours.monday_to_sunday}.`;
+  return {
+    title: "Reservations",
+    description,
+    alternates: { canonical: "/reservations" },
+    openGraph: { title: `Reservations | ${business.name}`, description, url: "/reservations" },
+  };
+}
 
 export default function ReservationsPage() {
   const business = getBusiness();

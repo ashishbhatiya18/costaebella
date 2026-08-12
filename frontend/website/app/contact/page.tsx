@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import { getBusiness } from "@/lib/data";
 
-export const metadata: Metadata = {
-  title: "Contact | Costa e Bella",
-};
+export function generateMetadata(): Metadata {
+  const business = getBusiness();
+  const description = `Get in touch with ${business.name} - address, phone, email and Instagram. ${business.address.line1}, ${business.address.line2}.`;
+  return {
+    title: "Contact",
+    description,
+    alternates: { canonical: "/contact" },
+    openGraph: { title: `Contact | ${business.name}`, description, url: "/contact" },
+  };
+}
 
 export default function ContactPage() {
   const business = getBusiness();

@@ -1,17 +1,30 @@
 import Image from "next/image";
 import type { Metadata } from "next";
-import { getMenu } from "@/lib/data";
+import { getBusiness, getMenu } from "@/lib/data";
 import MenuSection from "@/components/MenuSection";
+import JsonLd from "@/components/JsonLd";
+import { buildMenuSchema } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Menu | Costa e Bella",
-};
+export function generateMetadata(): Metadata {
+  const business = getBusiness();
+  const description = `Explore the full ${business.name} menu: speciality coffee, matcha, mocktails, Goan starters, pizza, pasta, Chinese noodles, rice bowls and desserts. Open daily ${business.hours.monday_to_sunday}.`;
+
+  return {
+    title: "Menu",
+    description,
+    alternates: { canonical: "/menu" },
+    openGraph: { title: `Menu | ${business.name}`, description, url: "/menu" },
+  };
+}
 
 export default function MenuPage() {
+  const business = getBusiness();
   const menu = getMenu();
+  const menuSchema = buildMenuSchema(menu, business);
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-16">
+      <JsonLd data={menuSchema} />
       <header className="text-center mb-16">
         <p className="uppercase tracking-[0.3em] text-teal text-xs mb-3">Menu</p>
         <h1 className="font-display text-4xl text-navy">Coffee &amp; Kitchen</h1>

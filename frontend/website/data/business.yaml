@@ -7,6 +7,10 @@ description: >
   A taste of Goa in Kalyan, where coastal recipes, handcrafted coffee,
   seafood specialties, and tropical vibes come together.
 
+# Production URL. Used for canonical links, sitemap.xml, robots.txt and
+# structured data (JSON-LD) shown to search engines. Update if the domain changes.
+site_url: "https://costaebella.pages.dev"
+
 contact:
   phone_primary: "+91 98199 11137"
   phone_secondary: "+91 77389 31473"

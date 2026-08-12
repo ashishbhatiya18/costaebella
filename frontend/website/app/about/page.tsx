@@ -2,9 +2,15 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { getBusiness } from "@/lib/data";
 
-export const metadata: Metadata = {
-  title: "About | Costa e Bella",
-};
+export function generateMetadata(): Metadata {
+  const business = getBusiness();
+  return {
+    title: "About",
+    description: business.description,
+    alternates: { canonical: "/about" },
+    openGraph: { title: `About | ${business.name}`, description: business.description, url: "/about" },
+  };
+}
 
 export default function AboutPage() {
   const business = getBusiness();

@@ -26,6 +26,7 @@ export default function ReservationsPage() {
         <p className="text-sm text-navy/60 mb-2">Call us to book</p>
         <a
           href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`}
+          data-gtm-event="call_click"
           className="font-display text-3xl text-navy hover:text-teal transition-colors"
         >
           {business.contact.phone_primary}
@@ -34,6 +35,7 @@ export default function ReservationsPage() {
           or{" "}
           <a
             href={`tel:${business.contact.phone_secondary.replace(/\s/g, "")}`}
+            data-gtm-event="call_click"
             className="hover:underline"
           >
             {business.contact.phone_secondary}
@@ -46,6 +48,7 @@ export default function ReservationsPage() {
           href={buildWhatsAppUrl(business.contact.phone_primary, `Hi ${business.name}! I'd like to reserve a table.`)}
           target="_blank"
           rel="noopener noreferrer"
+          data-gtm-event="whatsapp_click"
           className="inline-flex items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
         >
           Chat on WhatsApp

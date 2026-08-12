@@ -30,12 +30,14 @@ export default function Home() {
           <div className="flex flex-wrap gap-4">
             <Link
               href="/menu"
+              data-gtm-event="view_menu"
               className="bg-coral text-cream px-6 py-3 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
             >
               View Menu
             </Link>
             <Link
               href="/reservations"
+              data-gtm-event="reserve_table"
               className="border border-cream/60 text-cream px-6 py-3 rounded-full text-sm font-medium hover:bg-cream/10 transition-colors"
             >
               Reserve a Table
@@ -106,6 +108,7 @@ export default function Home() {
           href={business.address.google_maps_url}
           target="_blank"
           rel="noopener noreferrer"
+          data-gtm-event="get_directions"
           className="inline-block bg-navy text-cream px-6 py-3 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
         >
           Get Directions

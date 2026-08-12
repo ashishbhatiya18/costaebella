@@ -32,6 +32,7 @@ export default function ContactPage() {
             href={business.address.google_maps_url}
             target="_blank"
             rel="noopener noreferrer"
+            data-gtm-event="get_directions"
             className="text-teal text-sm font-medium hover:underline"
           >
             Get Directions →
@@ -41,12 +42,20 @@ export default function ContactPage() {
         <div className="bg-teal/5 rounded-2xl p-6 border border-navy/5">
           <h3 className="font-display text-lg text-navy mb-2">Phone</h3>
           <p className="text-navy/70 text-sm">
-            <a href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`} className="hover:underline">
+            <a
+              href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`}
+              data-gtm-event="call_click"
+              className="hover:underline"
+            >
               {business.contact.phone_primary}
             </a>
           </p>
           <p className="text-navy/70 text-sm mb-3">
-            <a href={`tel:${business.contact.phone_secondary.replace(/\s/g, "")}`} className="hover:underline">
+            <a
+              href={`tel:${business.contact.phone_secondary.replace(/\s/g, "")}`}
+              data-gtm-event="call_click"
+              className="hover:underline"
+            >
               {business.contact.phone_secondary}
             </a>
           </p>
@@ -54,6 +63,7 @@ export default function ContactPage() {
             href={buildWhatsAppUrl(business.contact.phone_primary, `Hi ${business.name}! I'd like to know more.`)}
             target="_blank"
             rel="noopener noreferrer"
+            data-gtm-event="whatsapp_click"
             className="text-teal text-sm font-medium hover:underline"
           >
             Chat on WhatsApp →
@@ -64,6 +74,7 @@ export default function ContactPage() {
           <h3 className="font-display text-lg text-navy mb-2">Email</h3>
           <a
             href={`mailto:${business.contact.email}`}
+            data-gtm-event="email_click"
             className="text-navy/70 text-sm hover:underline"
           >
             {business.contact.email}
@@ -76,6 +87,7 @@ export default function ContactPage() {
             href={business.contact.instagram_url}
             target="_blank"
             rel="noopener noreferrer"
+            data-gtm-event="instagram_click"
             className="text-navy/70 text-sm hover:underline"
           >
             @{business.contact.instagram_handle}

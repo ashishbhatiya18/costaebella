@@ -18,6 +18,7 @@ export default function Footer() {
             href={business.address.google_maps_url}
             target="_blank"
             rel="noopener noreferrer"
+            data-gtm-event="get_directions"
             className="text-sand hover:underline"
           >
             View on Google Maps
@@ -26,12 +27,20 @@ export default function Footer() {
 
         <div className="text-sm space-y-1">
           <p>
-            <a href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`} className="hover:underline">
+            <a
+              href={`tel:${business.contact.phone_primary.replace(/\s/g, "")}`}
+              data-gtm-event="call_click"
+              className="hover:underline"
+            >
               {business.contact.phone_primary}
             </a>
           </p>
           <p>
-            <a href={`mailto:${business.contact.email}`} className="hover:underline">
+            <a
+              href={`mailto:${business.contact.email}`}
+              data-gtm-event="email_click"
+              className="hover:underline"
+            >
               {business.contact.email}
             </a>
           </p>
@@ -40,6 +49,7 @@ export default function Footer() {
               href={business.contact.instagram_url}
               target="_blank"
               rel="noopener noreferrer"
+              data-gtm-event="instagram_click"
               className="hover:underline"
             >
               @{business.contact.instagram_handle}

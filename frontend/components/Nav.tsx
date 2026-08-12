@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getToken, clearToken, clearStoredEmail, AUTH_CHANGE_EVENT } from "@/lib/admin/api";
 
 const links = [
   { href: "/", label: "Home" },
@@ -14,6 +15,26 @@ const links = [
 
 export default function Nav({ businessName }: { businessName: string }) {
   const [open, setOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setLoggedIn(!!getToken());
+    const sync = () => setLoggedIn(!!getToken());
+    window.addEventListener(AUTH_CHANGE_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(AUTH_CHANGE_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  function handleLogout() {
+    clearToken();
+    clearStoredEmail();
+    setLoggedIn(false);
+    setOpen(false);
+    window.location.href = "/";
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-navy/10">
@@ -41,6 +62,27 @@ export default function Nav({ businessName }: { businessName: string }) {
               {link.label}
             </Link>
           ))}
+          {loggedIn ? (
+            <button
+              onClick={handleLogout}
+              data-gtm-event="nav_click"
+              data-gtm-label="Logout"
+              data-gtm-location="desktop_nav"
+              className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+            >
+              Logout
+            </button>
+          ) : (
+            <Link
+              href="/admin/login"
+              data-gtm-event="nav_click"
+              data-gtm-label="Login"
+              data-gtm-location="desktop_nav"
+              className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+            >
+              Login
+            </Link>
+          )}
         </nav>
 
         <button
@@ -75,6 +117,28 @@ export default function Nav({ businessName }: { businessName: string }) {
               {link.label}
             </Link>
           ))}
+          {loggedIn ? (
+            <button
+              onClick={handleLogout}
+              data-gtm-event="nav_click"
+              data-gtm-label="Logout"
+              data-gtm-location="mobile_nav"
+              className="text-left text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+            >
+              Logout
+            </button>
+          ) : (
+            <Link
+              href="/admin/login"
+              data-gtm-event="nav_click"
+              data-gtm-label="Login"
+              data-gtm-location="mobile_nav"
+              className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+              onClick={() => setOpen(false)}
+            >
+              Login
+            </Link>
+          )}
         </nav>
       )}
     </header>

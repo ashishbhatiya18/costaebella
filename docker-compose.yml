@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-attendance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-attendance}
+      POSTGRES_DB: ${POSTGRES_DB:-attendance}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-attendance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-attendance}:${POSTGRES_PASSWORD:-attendance}@postgres:5432/${POSTGRES_DB:-attendance}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      PORT: 8080
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

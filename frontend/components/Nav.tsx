@@ -63,15 +63,26 @@ export default function Nav({ businessName }: { businessName: string }) {
             </Link>
           ))}
           {loggedIn ? (
-            <button
-              onClick={handleLogout}
-              data-gtm-event="nav_click"
-              data-gtm-label="Logout"
-              data-gtm-location="desktop_nav"
-              className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
-            >
-              Logout
-            </button>
+            <>
+              <Link
+                href="/admin"
+                data-gtm-event="nav_click"
+                data-gtm-label="Admin"
+                data-gtm-location="desktop_nav"
+                className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+              >
+                Admin
+              </Link>
+              <button
+                onClick={handleLogout}
+                data-gtm-event="nav_click"
+                data-gtm-label="Logout"
+                data-gtm-location="desktop_nav"
+                className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <Link
               href="/admin/login"
@@ -118,15 +129,27 @@ export default function Nav({ businessName }: { businessName: string }) {
             </Link>
           ))}
           {loggedIn ? (
-            <button
-              onClick={handleLogout}
-              data-gtm-event="nav_click"
-              data-gtm-label="Logout"
-              data-gtm-location="mobile_nav"
-              className="text-left text-sm font-medium text-navy/80 hover:text-teal transition-colors"
-            >
-              Logout
-            </button>
+            <>
+              <Link
+                href="/admin"
+                data-gtm-event="nav_click"
+                data-gtm-label="Admin"
+                data-gtm-location="mobile_nav"
+                className="text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+                onClick={() => setOpen(false)}
+              >
+                Admin
+              </Link>
+              <button
+                onClick={handleLogout}
+                data-gtm-event="nav_click"
+                data-gtm-label="Logout"
+                data-gtm-location="mobile_nav"
+                className="text-left text-sm font-medium text-navy/80 hover:text-teal transition-colors"
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <Link
               href="/admin/login"

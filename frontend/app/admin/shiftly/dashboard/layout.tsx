@@ -69,22 +69,36 @@ export default function DashboardLayout({
     <div className="flex min-h-screen w-full flex-col bg-cream text-navy lg:flex-row">
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b border-navy/10 bg-white px-4 py-3 lg:hidden">
-        <div className="flex items-center gap-2">
+        <Link href="/admin" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal font-bold text-sm text-white">
             S
           </div>
           <span className="font-display text-lg tracking-tight text-navy">Shiftly</span>
-        </div>
+        </Link>
+        <Link
+          href="/admin"
+          className="text-xs font-medium text-navy/50 hover:text-teal transition-colors"
+        >
+          All apps
+        </Link>
       </header>
 
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-navy/10 bg-white px-4 py-6 lg:flex">
-        <div className="flex items-center gap-2 px-2">
+        <Link href="/admin" className="flex items-center gap-2 px-2 group">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal font-bold text-sm text-white">
             S
           </div>
-          <span className="font-display text-lg tracking-tight text-navy">Shiftly</span>
-        </div>
+          <span className="font-display text-lg tracking-tight text-navy group-hover:text-teal transition-colors">
+            Shiftly
+          </span>
+        </Link>
+        <Link
+          href="/admin"
+          className="mt-1 px-2 text-xs font-medium text-navy/40 hover:text-teal transition-colors"
+        >
+          ← All apps
+        </Link>
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
           {NAV_ITEMS.map((item) => {

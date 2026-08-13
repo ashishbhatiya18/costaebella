@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getBusiness } from "@/lib/data";
-import { buildWhatsAppUrl } from "@/components/WhatsAppButton";
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
 
 export function generateMetadata(): Metadata {
   const business = getBusiness();

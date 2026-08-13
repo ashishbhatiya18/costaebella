@@ -10,6 +10,7 @@ type Log struct {
 	LogoutTime *time.Time `json:"logout_time"`
 	AutoLogout bool       `json:"auto_logout"`
 	IsLeave    bool       `json:"is_leave"`
+	IsCompOff  bool       `json:"is_comp_off"`
 }
 
 type LogRequest struct {
@@ -33,6 +34,7 @@ type OverrideRequest struct {
 	EmployeeID string         `json:"employee_id"`
 	Date       string         `json:"date"` // YYYY-MM-DD
 	IsLeave    bool           `json:"is_leave"`
+	IsCompOff  bool           `json:"is_comp_off"` // worked a weekly off day and is banking it instead of taking the hourly bonus
 	Sessions   []SessionInput `json:"sessions"`
 }
 

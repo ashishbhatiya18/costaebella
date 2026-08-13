@@ -38,6 +38,7 @@ export function AttendanceOverrideModal({
   const employeeName = employee.name;
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [isLeave, setIsLeave] = useState(false);
+  const [isCompOff, setIsCompOff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export function AttendanceOverrideModal({
         const rows = logs ?? [];
         const leaveMarked = rows.some((l) => l.is_leave);
         setIsLeave(leaveMarked);
+        setIsCompOff(!leaveMarked && rows.some((l) => l.is_comp_off));
         setSessions(
           leaveMarked
             ? []
@@ -76,6 +78,7 @@ export function AttendanceOverrideModal({
       })),
     );
     setIsLeave(false);
+    setIsCompOff(false);
   }
 
   function updateSession(idx: number, patch: Partial<SessionRow>) {
@@ -107,6 +110,7 @@ export function AttendanceOverrideModal({
         employee_id: employeeId,
         date,
         is_leave: isLeave,
+        is_comp_off: !isLeave && isCompOff,
         sessions: payloadSessions,
       });
       onSaved();
@@ -140,11 +144,28 @@ export function AttendanceOverrideModal({
             <input
               type="checkbox"
               checked={isLeave}
-              onChange={(e) => setIsLeave(e.target.checked)}
+              onChange={(e) => {
+                setIsLeave(e.target.checked);
+                if (e.target.checked) setIsCompOff(false);
+              }}
               className="h-4 w-4 rounded border-navy/30 bg-white text-teal focus:ring-teal"
             />
             <span className="text-sm font-medium text-navy">Mark as leave</span>
           </label>
+
+          {!isLeave && (
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-navy/15 bg-cream/30 px-3.5 py-2.5">
+              <input
+                type="checkbox"
+                checked={isCompOff}
+                onChange={(e) => setIsCompOff(e.target.checked)}
+                className="h-4 w-4 rounded border-navy/30 bg-white text-teal focus:ring-teal"
+              />
+              <span className="text-sm font-medium text-navy">
+                Comp off (worked a day off, banking it instead of an hourly bonus)
+              </span>
+            </label>
+          )}
 
           {!isLeave && (
             <div className="space-y-2">
@@ -198,7 +219,9 @@ export function AttendanceOverrideModal({
           <p className="text-xs text-navy/50">
             {isLeave
               ? "Marking as leave clears any sessions logged for this day."
-              : "Leave a session's logout blank if it's still open. Saving overrides any auto-logout and is recorded as an admin correction."}
+              : isCompOff
+                ? "Comp off only applies on a weekly off day worked: the day is still paid in full, but no hourly bonus is added on top."
+                : "Leave a session's logout blank if it's still open. Saving overrides any auto-logout and is recorded as an admin correction."}
           </p>
 
           {error && (

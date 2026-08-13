@@ -34,6 +34,51 @@ tasks:
     cmds:
       - docker compose down
 
+  db:sync-from-prod:
+    desc: "Overwrite the local Postgres database with a fresh dump of production (prod is only ever read from). Requires PROD_DATABASE_URL in .env and pg_dump/psql on PATH."
+    deps:
+      - db:up
+    cmds:
+      - |
+        set -euo pipefail
+        if [ -z "${PROD_DATABASE_URL:-}" ]; then
+          echo "PROD_DATABASE_URL is not set — add it to .env (see .env.example)." >&2
+          exit 1
+        fi
+        if ! command -v pg_dump >/dev/null || ! command -v psql >/dev/null; then
+          echo "pg_dump/psql not found on PATH. Install the Postgres client tools (e.g. 'brew install libpq' and add it to PATH)." >&2
+          exit 1
+        fi
+
+        echo "This will REPLACE your local database (${POSTGRES_DB:-attendance}) with a dump of production (${PROD_DATABASE_URL%%@*}@...)."
+        read -p "Continue? [y/N] " confirm
+        if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+          echo "Aborted."
+          exit 1
+        fi
+
+        # Run on the host (not inside the postgres container): prod is
+        # typically only reachable via the host's network/VPN/DNS, and the
+        # local Postgres is already exposed on localhost via docker-compose.
+        echo "Dumping production (connection forced read-only) ..."
+        PGOPTIONS="-c default_transaction_read_only=on" pg_dump --no-owner --no-privileges --clean --if-exists \
+          "$PROD_DATABASE_URL" > /tmp/costaebella-prod-dump.sql
+
+        # pg_dump's preamble may set GUCs (e.g. transaction_timeout, added in
+        # PG17) that the local Postgres version doesn't recognize if the
+        # host's pg_dump is newer than the local server — strip those lines.
+        grep -v -E '^SET (transaction_timeout|idle_in_transaction_session_timeout|idle_session_timeout) ' \
+          /tmp/costaebella-prod-dump.sql > /tmp/costaebella-prod-dump.filtered.sql
+
+        echo "Restoring into local database ..."
+        PGPASSWORD="${POSTGRES_PASSWORD:-attendance}" psql \
+          -h localhost -p "${POSTGRES_PORT:-5432}" \
+          -U "${POSTGRES_USER:-attendance}" -d "${POSTGRES_DB:-attendance}" \
+          -v ON_ERROR_STOP=1 < /tmp/costaebella-prod-dump.filtered.sql
+
+        rm -f /tmp/costaebella-prod-dump.sql /tmp/costaebella-prod-dump.filtered.sql
+        echo "Local database synced from production."
+
   db:migrate:
     desc: Migrations run automatically whenever the backend starts (see internal/db). This task is a no-op alias for discoverability.
     cmds:

@@ -141,7 +141,7 @@ func validateEmployee(e Employee) error {
 
 // maxDailyShiftHours is the hard cap on an employee's total configured
 // shift hours for any single day.
-const maxDailyShiftHours = 9.0
+const maxDailyShiftHours = 15.0
 
 // totalHours sums the duration of a set of shift intervals, treating
 // end<=start as an overnight shift.

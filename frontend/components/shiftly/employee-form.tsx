@@ -252,7 +252,7 @@ export function EmployeeForm({
         </div>
         <p className="mt-1.5 text-xs text-navy/50">
           Add multiple intervals for split shifts. Intervals must not overlap,
-          and total hours for any single day cannot exceed 9h.
+          and total hours for any single day cannot exceed 15h.
         </p>
       </div>
 

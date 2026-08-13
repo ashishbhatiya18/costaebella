@@ -27,12 +27,12 @@ const (
 //	0h            -> absent (no leave allowance consumed)
 //	(0h, 5h)      -> leave (auto; consumes the monthly leave allowance)
 //	[5h, 7h)      -> half day
-//	[7h, 10h]     -> full day
-//	>10h          -> full day + overtime bonus for hours beyond 10h
+//	[7h, 16h]     -> full day
+//	>16h          -> full day + overtime bonus for hours beyond 16h
 const (
 	leaveHoursThreshold = 5.0  // <5h worked (but >0) -> auto leave
 	halfDayHoursCeiling = 7.0  // [5,7) -> half day
-	otHoursThreshold    = 10.0 // >10h -> overtime; [.., 10] -> full day
+	otHoursThreshold    = 16.0 // >16h -> overtime; [.., 16] -> full day (matches the 15h max configured shift + buffer)
 	fallbackStdHours    = 8.0  // used only if an employee has no committed days configured
 )
 
@@ -58,6 +58,7 @@ type DayAvailability struct {
 	WithinAvailability bool    `json:"within_availability"` // true = committed working day
 	Present            bool    `json:"present"`             // at least one session logged (not leave)
 	Leave              bool    `json:"leave"`
+	CompOff            bool    `json:"comp_off"` // worked a weekly off, banking it instead of taking the hourly bonus
 	AutoLogout         bool    `json:"auto_logout"`
 	HoursWorked        float64 `json:"hours_worked"`   // sum of closed sessions that day
 	ExpectedHours      float64 `json:"expected_hours"` // this day's configured shift hours (0 for weekly-off/before-start); always <=9, enforced at employee setup
@@ -205,9 +206,13 @@ func ComputeAvailability(e employee.Employee, logs []attendance.Log, from, to ti
 		dayLogs := byDate[dateStr]
 
 		isLeaveMarked := false
+		isCompOffMarked := false
 		for _, l := range dayLogs {
 			if l.IsLeave {
 				isLeaveMarked = true
+			}
+			if l.IsCompOff {
+				isCompOffMarked = true
 			}
 		}
 		present := !isLeaveMarked && len(dayLogs) > 0
@@ -236,9 +241,19 @@ func ComputeAvailability(e employee.Employee, logs []attendance.Log, from, to ti
 
 		case !committed: // weekly off
 			day.DayCredit = 1.0
-			if present && hoursWorked > 0 {
+			if present && hoursWorked > 0 && !isCompOffMarked {
+				// Weekly off is already paid in full via DayCredit above, so
+				// only hours beyond a standard working day count as bonus —
+				// otherwise a normal shift worked on a weekly off would be
+				// paid twice (once as the day credit, once again in full as
+				// "bonus" hours).
 				day.Category = CategoryWeeklyOffWorked
-				day.BonusHours = hoursWorked
+				day.BonusHours = math.Max(0, hoursWorked-standardDailyHours(e))
+			} else if present && hoursWorked > 0 {
+				// Comp-off: employee worked their weekly off but is banking
+				// the day instead of taking a bonus — no bonus hours.
+				day.Category = CategoryWeeklyOffWorked
+				day.CompOff = true
 			} else {
 				day.Category = CategoryWeeklyOff
 			}

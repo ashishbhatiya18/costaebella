@@ -54,6 +54,12 @@ const CATEGORY_STYLE: Record<
   },
 };
 
+const COMP_OFF_STYLE = {
+  label: "comp off (worked, banked — no bonus)",
+  className: "bg-sand/30 text-navy ring-1 ring-sand",
+  letter: "C",
+};
+
 const LEGEND_ITEMS: { label: string; swatch: string }[] = [
   { label: "Full day", swatch: "bg-teal/50" },
   { label: "Full day + OT", swatch: "bg-teal/50 ring-2 ring-coral" },
@@ -61,6 +67,7 @@ const LEGEND_ITEMS: { label: string; swatch: string }[] = [
   { label: "Absent", swatch: "bg-coral/40" },
   { label: "Weekly off", swatch: "bg-navy/20" },
   { label: "Weekly off (worked)", swatch: "bg-teal/40" },
+  { label: "Comp off", swatch: "bg-sand/60" },
   { label: "Leave", swatch: "bg-sand" },
   { label: "Unpaid leave", swatch: "bg-coral/60" },
   { label: "Before joining", swatch: "bg-navy/10" },
@@ -194,6 +201,7 @@ export default function AttendanceSummaryPage() {
               employee_id: sel.employeeId,
               date,
               is_leave: true,
+              is_comp_off: false,
               sessions: [],
             });
           }
@@ -201,6 +209,7 @@ export default function AttendanceSummaryPage() {
             employee_id: sel.employeeId,
             date,
             is_leave: false,
+            is_comp_off: false,
             sessions: getShiftSessionsForDate(employee, date),
           });
         }),
@@ -276,7 +285,7 @@ export default function AttendanceSummaryPage() {
                 const isSelected =
                   selection?.employeeId === emp.employee_id &&
                   selection.dates.has(day.date);
-                const style = CATEGORY_STYLE[day.category];
+                const style = day.comp_off ? COMP_OFF_STYLE : CATEGORY_STYLE[day.category];
                 return (
                   <button
                     key={day.date}

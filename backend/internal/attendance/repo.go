@@ -43,9 +43,9 @@ func (r *Repo) InsertSession(ctx context.Context, employeeID, date string, login
 	err = tx.QueryRow(ctx, `
 		INSERT INTO attendance_logs (employee_id, log_date, login_time)
 		VALUES ($1, $2, $3)
-		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave`,
+		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off`,
 		employeeID, date, loginTime).Scan(
-		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave)
+		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff)
 	if err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
 	}
@@ -70,9 +70,9 @@ func (r *Repo) CloseOpenSession(ctx context.Context, employeeID, date string, lo
 			ORDER BY login_time DESC
 			LIMIT 1
 		)
-		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave`,
+		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off`,
 		employeeID, date, logoutTime).Scan(
-		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave)
+		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoOpenSession
 	}
@@ -84,8 +84,10 @@ func (r *Repo) CloseOpenSession(ctx context.Context, employeeID, date string, lo
 
 // ReplaceDay replaces all attendance rows for an employee+date with either a
 // single leave marker (isLeave=true, sessions ignored) or the given list of
-// sessions. Runs as one transaction so the day is never left inconsistent.
-func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions []SessionInput, isLeave bool) ([]Log, error) {
+// sessions (optionally flagged isCompOff, e.g. a weekly off worked and
+// banked instead of paid as a bonus). Runs as one transaction so the day is
+// never left inconsistent.
+func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions []SessionInput, isLeave bool, isCompOff bool) ([]Log, error) {
 	if !isLeave {
 		if err := checkSessionOverlaps(sessions); err != nil {
 			return nil, err
@@ -104,14 +106,14 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 	}
 
 	var out []Log
-	insertOne := func(loginTime *time.Time, logoutTime *time.Time, leave bool) error {
+	insertOne := func(loginTime *time.Time, logoutTime *time.Time, leave bool, compOff bool) error {
 		var l Log
 		err := tx.QueryRow(ctx, `
-			INSERT INTO attendance_logs (employee_id, log_date, login_time, logout_time, is_leave)
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave`,
-			employeeID, date, loginTime, logoutTime, leave).Scan(
-			&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave)
+			INSERT INTO attendance_logs (employee_id, log_date, login_time, logout_time, is_leave, is_comp_off)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off`,
+			employeeID, date, loginTime, logoutTime, leave, compOff).Scan(
+			&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff)
 		if err != nil {
 			return fmt.Errorf("insert row: %w", err)
 		}
@@ -120,7 +122,7 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 	}
 
 	if isLeave {
-		if err := insertOne(nil, nil, true); err != nil {
+		if err := insertOne(nil, nil, true, false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -137,7 +139,7 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 				}
 				logoutTime = &parsed
 			}
-			if err := insertOne(&loginTime, logoutTime, false); err != nil {
+			if err := insertOne(&loginTime, logoutTime, false, isCompOff); err != nil {
 				return nil, err
 			}
 		}
@@ -155,7 +157,7 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 // rows now that split-shift sessions are supported.
 func (r *Repo) ListRange(ctx context.Context, employeeID, from, to string) ([]Log, error) {
 	query := `
-		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave
+		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off
 		FROM attendance_logs
 		WHERE log_date BETWEEN $1 AND $2 AND ($3 = '' OR employee_id::text = $3)
 		ORDER BY employee_id, log_date, login_time`
@@ -169,7 +171,7 @@ func (r *Repo) ListRange(ctx context.Context, employeeID, from, to string) ([]Lo
 	var out []Log
 	for rows.Next() {
 		var l Log
-		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave); err != nil {
+		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff); err != nil {
 			return nil, fmt.Errorf("scan log: %w", err)
 		}
 		out = append(out, l)
@@ -181,7 +183,7 @@ func (r *Repo) ListRange(ctx context.Context, employeeID, from, to string) ([]Lo
 // logout_time yet, across all employees. Used by the auto-logout reconciler.
 func (r *Repo) ListOpen(ctx context.Context) ([]Log, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave
+		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off
 		FROM attendance_logs
 		WHERE login_time IS NOT NULL AND logout_time IS NULL`)
 	if err != nil {
@@ -192,7 +194,7 @@ func (r *Repo) ListOpen(ctx context.Context) ([]Log, error) {
 	var out []Log
 	for rows.Next() {
 		var l Log
-		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave); err != nil {
+		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff); err != nil {
 			return nil, fmt.Errorf("scan open log: %w", err)
 		}
 		out = append(out, l)

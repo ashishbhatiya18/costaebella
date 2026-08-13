@@ -81,7 +81,7 @@ func (h *Handler) Override(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs, err := h.repo.ReplaceDay(r.Context(), req.EmployeeID, req.Date, req.Sessions, req.IsLeave)
+	logs, err := h.repo.ReplaceDay(r.Context(), req.EmployeeID, req.Date, req.Sessions, req.IsLeave, req.IsCompOff)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to override attendance: %v", err), http.StatusBadRequest)
 		return

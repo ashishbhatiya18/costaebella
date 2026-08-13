@@ -53,6 +53,7 @@ export const api = {
     employee_id: string;
     date: string;
     is_leave: boolean;
+    is_comp_off: boolean;
     sessions: { login_time: string; logout_time: string | null }[];
   }) =>
     request<AttendanceLog[]>("/api/attendance/override", {
@@ -106,6 +107,7 @@ export type AttendanceLog = {
   logout_time: string | null;
   auto_logout: boolean;
   is_leave: boolean;
+  is_comp_off: boolean;
 };
 
 export type ActivityItem = {
@@ -138,6 +140,7 @@ export type DayAvailability = {
   within_availability: boolean;
   present: boolean;
   leave: boolean;
+  comp_off: boolean;
   auto_logout: boolean;
   hours_worked: number;
   expected_hours: number;

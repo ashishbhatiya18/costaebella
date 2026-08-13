@@ -1,12 +1,7 @@
-function toWhatsAppDigits(phone: string) {
-  return phone.replace(/\D/g, "");
-}
+"use client";
 
-export function buildWhatsAppUrl(phone: string, message?: string) {
-  const digits = toWhatsAppDigits(phone);
-  const text = message ? `?text=${encodeURIComponent(message)}` : "";
-  return `https://wa.me/${digits}${text}`;
-}
+import { usePathname } from "next/navigation";
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
 
 export default function WhatsAppButton({
   phone,
@@ -15,7 +10,13 @@ export default function WhatsAppButton({
   phone: string;
   businessName: string;
 }) {
+  const pathname = usePathname();
   const url = buildWhatsAppUrl(phone, `Hi ${businessName}! I'd like to know more.`);
+
+  // Not relevant inside the admin/Shiftly tools, and it floats on top of
+  // Shiftly's own fixed mobile bottom nav (both bottom-right, comparable
+  // z-index), covering part of it.
+  if (pathname?.startsWith("/admin")) return null;
 
   return (
     <a

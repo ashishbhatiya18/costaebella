@@ -265,11 +265,11 @@ food:
     items:
       - name: "Bebinca with Ice Cream"
         price: 299
+        image: "/images/food/food-bebinca-with-ice-cream.jpg"
       - name: "Serradura Dessert Jar"
         price: 249
       - name: "Chocolate Churros"
         price: 279
-        image: "/images/food/food-chocolate-churros.jpg"
 
 # Original menu images, shown alongside the structured data above.
 images:

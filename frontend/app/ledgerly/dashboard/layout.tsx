@@ -39,10 +39,20 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M12 4v11m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 18h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const NAV_ITEMS = [
   { href: "/ledgerly/dashboard/log-revenue", label: "Log Revenue", shortLabel: "Revenue", Icon: CoinIcon, gated: false },
   { href: "/ledgerly/dashboard/payments", label: "Payments", shortLabel: "Payments", Icon: ReceiptIcon, gated: false },
   { href: "/ledgerly/dashboard/summary", label: "P&L Summary", shortLabel: "Summary", Icon: ChartIcon, gated: true },
+  { href: "/ledgerly/dashboard/tax-export", label: "Tax Export", shortLabel: "Tax", Icon: DownloadIcon, gated: true },
 ];
 
 export default function DashboardLayout({

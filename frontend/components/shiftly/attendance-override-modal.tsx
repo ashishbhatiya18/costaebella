@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError, Employee } from "@/lib/shiftly/api";
-import { Modal } from "@/components/shiftly/ui/modal";
-import { Button } from "@/components/shiftly/ui/button";
-import { Label } from "@/components/shiftly/ui/input";
+import { Modal } from "@/components/admin/ui/modal";
+import { Button } from "@/components/admin/ui/button";
+import { Label } from "@/components/admin/ui/input";
 import { getShiftSessionsForDate } from "@/lib/shiftly/shift-times";
 
 type SessionRow = { loginTime: string; logoutTime: string };

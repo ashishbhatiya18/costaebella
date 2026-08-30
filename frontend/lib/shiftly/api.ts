@@ -11,20 +11,20 @@ function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  listEmployees: () => request<Employee[]>("/api/employees/"),
-  getEmployee: (id: string) => request<Employee>(`/api/employees/${id}`),
+  listEmployees: () => request<Employee[]>("/api/shiftly/employees/"),
+  getEmployee: (id: string) => request<Employee>(`/api/shiftly/employees/${id}`),
   createEmployee: (e: Partial<Employee>) =>
-    request<Employee>("/api/employees/", {
+    request<Employee>("/api/shiftly/employees/", {
       method: "POST",
       body: JSON.stringify(e),
     }),
   updateEmployee: (id: string, e: Partial<Employee>) =>
-    request<Employee>(`/api/employees/${id}`, {
+    request<Employee>(`/api/shiftly/employees/${id}`, {
       method: "PUT",
       body: JSON.stringify(e),
     }),
   deleteEmployee: (id: string) =>
-    request<void>(`/api/employees/${id}`, { method: "DELETE" }),
+    request<void>(`/api/shiftly/employees/${id}`, { method: "DELETE" }),
 
   logAttendance: (body: {
     employee_id: string;
@@ -32,7 +32,7 @@ export const api = {
     field: "login" | "logout";
     time?: string;
   }) =>
-    request<AttendanceLog>("/api/attendance/log", {
+    request<AttendanceLog>("/api/shiftly/attendance/log", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -46,7 +46,7 @@ export const api = {
     if (params.employee_id) q.set("employee_id", params.employee_id);
     q.set("from", params.from);
     q.set("to", params.to);
-    return request<AttendanceLog[]>(`/api/attendance?${q.toString()}`);
+    return request<AttendanceLog[]>(`/api/shiftly/attendance?${q.toString()}`);
   },
 
   overrideAttendance: (body: {
@@ -56,7 +56,7 @@ export const api = {
     is_comp_off: boolean;
     sessions: { login_time: string; logout_time: string | null }[];
   }) =>
-    request<AttendanceLog[]>("/api/attendance/override", {
+    request<AttendanceLog[]>("/api/shiftly/attendance/override", {
       method: "PUT",
       body: JSON.stringify(body),
     }),
@@ -66,16 +66,16 @@ export const api = {
     if (params.employeeId) q.set("employee_id", params.employeeId);
     q.set("limit", String(params.limit));
     q.set("offset", String(params.offset));
-    return request<ActivityResponse>(`/api/attendance/activity?${q.toString()}`);
+    return request<ActivityResponse>(`/api/shiftly/attendance/activity?${q.toString()}`);
   },
 
   attendanceSummary: (range: "week" | "month" | "quarter", anchorDate: string) =>
     request<AttendanceSummaryResponse>(
-      `/api/summary/attendance?range=${range}&anchor_date=${anchorDate}`,
+      `/api/shiftly/summary/attendance?range=${range}&anchor_date=${anchorDate}`,
     ),
 
   payoutSummary: (month: string) =>
-    request<PayoutSummaryResponse>(`/api/summary/payout?month=${month}`),
+    request<PayoutSummaryResponse>(`/api/shiftly/summary/payout?month=${month}`),
 };
 
 export type ShiftInterval = {

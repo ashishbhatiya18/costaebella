@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Employee, ShiftInterval } from "@/lib/shiftly/api";
-import { Button } from "@/components/shiftly/ui/button";
-import { Input, Label } from "@/components/shiftly/ui/input";
+import { Button } from "@/components/admin/ui/button";
+import { Input, Label } from "@/components/admin/ui/input";
 
 const DAYS = [
   { value: 0, label: "Sun" },

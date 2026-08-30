@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -26,6 +27,7 @@ func NewService(pool *pgxpool.Pool, secret, googleClientID string) *Service {
 // SeedWhitelistedEmail ensures a whitelisted-admin row exists for the given
 // email. If it already exists, it is left untouched.
 func (s *Service) SeedWhitelistedEmail(ctx context.Context, email string) error {
+	email = NormalizeEmail(email)
 	if email == "" {
 		return nil
 	}
@@ -51,8 +53,9 @@ func (s *Service) LoginWithGoogle(ctx context.Context, idToken string) (token, e
 		return "", "", err
 	}
 
+	normalizedEmail := NormalizeEmail(claims.Email)
 	var id string
-	dbErr := s.pool.QueryRow(ctx, `SELECT id FROM admins WHERE email = $1`, claims.Email).Scan(&id)
+	dbErr := s.pool.QueryRow(ctx, `SELECT id FROM admins WHERE email = $1`, normalizedEmail).Scan(&id)
 	if errors.Is(dbErr, pgx.ErrNoRows) {
 		return "", "", ErrEmailNotWhitelisted
 	}
@@ -62,7 +65,7 @@ func (s *Service) LoginWithGoogle(ctx context.Context, idToken string) (token, e
 
 	jwtClaims := Claims{
 		AdminID: id,
-		Email:   claims.Email,
+		Email:   normalizedEmail,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -73,7 +76,7 @@ func (s *Service) LoginWithGoogle(ctx context.Context, idToken string) (token, e
 	if err != nil {
 		return "", "", fmt.Errorf("sign token: %w", err)
 	}
-	return signed, claims.Email, nil
+	return signed, normalizedEmail, nil
 }
 
 // Verify parses and validates a JWT, returning its claims.
@@ -89,4 +92,13 @@ func (s *Service) Verify(tokenStr string) (*Claims, error) {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 	return claims, nil
+}
+
+// NormalizeEmail trims and lowercases an email so whitelist comparisons
+// (admins, ledgerly_admins) aren't tripped up by incidental case/whitespace
+// differences between how an email was seeded vs. how Google reports it.
+// Exported so other whitelist tables (e.g. internal/ledgerly/access) apply
+// the same normalization when seeding from env vars.
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }

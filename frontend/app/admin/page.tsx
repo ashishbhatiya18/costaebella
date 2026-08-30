@@ -13,8 +13,18 @@ type LauncherApp = {
 const APPS: LauncherApp[] = [
   {
     name: "Shiftly",
-    href: "/admin/shiftly",
+    href: "/shiftly",
     description: "Restaurant staff attendance and payout tracker.",
+  },
+  {
+    name: "Pantrly",
+    href: "/pantrly",
+    description: "Restaurant inventory tracker — stock counts, par-level alerts, and deliveries.",
+  },
+  {
+    name: "Ledgerly",
+    href: "/ledgerly",
+    description: "Restaurant revenue and expenditure tracker — daily sales, payments, and P&L.",
   },
 ];
 

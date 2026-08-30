@@ -13,6 +13,7 @@ import (
 type contextKey string
 
 const AdminIDKey contextKey = "admin_id"
+const AdminEmailKey contextKey = "admin_email"
 
 // RequireAuth validates the Authorization: Bearer <token> header and stores
 // the admin id in the request context.
@@ -33,6 +34,7 @@ func RequireAuth(svc *auth.Service) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), AdminIDKey, claims.AdminID)
+			ctx = context.WithValue(ctx, AdminEmailKey, claims.Email)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -8,11 +8,26 @@ vars:
 
 tasks:
   dev:
-    desc: Start Postgres, the Go API, and the Next.js dev server together.
-    deps:
-      - db:up
+    desc: Start Postgres, the Go API, and the Next.js dev server together (kills any previously running instances first).
     cmds:
+      - task: dev:kill-existing
+      - task: db:up
       - task: dev:backend-and-frontend
+
+  dev:kill-existing:
+    internal: true
+    desc: Kill any backend/frontend dev processes left running from a previous `task dev` or a manually started `./bin/api` / `npm run dev`.
+    cmds:
+      - |
+        pkill -f '{{.BACKEND_DIR}}/bin/api' 2>/dev/null || true
+        for p in "${PORT:-8080}" 3000; do
+          pids=$(lsof -ti "tcp:$p" 2>/dev/null) || true
+          if [ -n "$pids" ]; then
+            echo "Killing existing process(es) on port $p: $pids"
+            kill -9 $pids 2>/dev/null || true
+          fi
+        done
+        sleep 0.5
 
   dev:backend-and-frontend:
     internal: true

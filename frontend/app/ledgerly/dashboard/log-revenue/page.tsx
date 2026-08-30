@@ -20,7 +20,9 @@ function toCents(value: string) {
 
 export default function LogRevenuePage() {
   usePageTitle("Log Revenue");
-  const [mode, setMode] = useState<"daily" | "sale">("daily");
+  // Daily Total tab is temporarily disabled (a day logged both ways silently
+  // drops the daily total in favor of per-sale entries — see RangeRevenue).
+  const [mode] = useState<"daily" | "sale">("sale");
   const [date, setDate] = useState(today());
 
   // Daily total mode
@@ -130,11 +132,11 @@ export default function LogRevenuePage() {
 
       <SegmentedControl
         options={[
-          { label: "Daily Total", value: "daily" },
+          { label: "Daily Total", value: "daily", disabled: true },
           { label: "Per Sale", value: "sale" },
         ]}
         value={mode}
-        onChange={setMode}
+        onChange={() => {}}
       />
 
       {mode === "daily" ? (

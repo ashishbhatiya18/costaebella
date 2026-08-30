@@ -37,10 +37,10 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
     ],
-    // Android caps the long-press shortcut menu at 4 entries — keep exactly
-    // these, in this order.
+    // Observed cap on this device's long-press shortcut menu is 3 entries
+    // (Android's documented max is 4, but actual launchers vary) — keep
+    // just the three admin apps.
     shortcuts: [
-      { name: "Menu", url: "/menu" },
       { name: "Shiftly", url: "/shiftly" },
       { name: "Pantrly", url: "/pantrly" },
       { name: "Ledgerly", url: "/ledgerly" },

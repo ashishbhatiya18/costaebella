@@ -37,10 +37,10 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
     ],
+    // Android caps the long-press shortcut menu at 4 entries — keep exactly
+    // these, in this order.
     shortcuts: [
-      { name: "Website", url: "/" },
       { name: "Menu", url: "/menu" },
-      { name: "Admin", url: "/admin" },
       { name: "Shiftly", url: "/shiftly" },
       { name: "Pantrly", url: "/pantrly" },
       { name: "Ledgerly", url: "/ledgerly" },

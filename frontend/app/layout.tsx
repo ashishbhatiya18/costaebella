@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import JsonLd from "@/components/JsonLd";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import PwaRegister from "@/components/PwaRegister";
 import { GTMScript, GTMNoScript } from "@/components/GoogleTagManager";
 import { getBusiness } from "@/lib/data";
 import { buildRestaurantSchema } from "@/lib/structured-data";
@@ -18,6 +19,10 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  themeColor: "#16302e",
+};
 
 export function generateMetadata(): Metadata {
   const business = getBusiness();
@@ -61,6 +66,16 @@ export function generateMetadata(): Metadata {
       index: true,
       follow: true,
     },
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: business.name,
+    },
+    icons: {
+      icon: [{ url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }],
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
   };
 }
 
@@ -83,6 +98,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex-1">{children}</main>
         <Footer />
         <WhatsAppButton phone={business.contact.phone_primary} businessName={business.name} />
+        <PwaRegister />
       </body>
     </html>
   );

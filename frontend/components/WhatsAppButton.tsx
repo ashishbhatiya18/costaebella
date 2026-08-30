@@ -16,7 +16,13 @@ export default function WhatsAppButton({
   // Not relevant inside the admin/Shiftly tools, and it floats on top of
   // Shiftly's own fixed mobile bottom nav (both bottom-right, comparable
   // z-index), covering part of it.
-  if (pathname?.startsWith("/admin")) return null;
+  if (
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/shiftly") ||
+    pathname?.startsWith("/pantrly") ||
+    pathname?.startsWith("/ledgerly")
+  )
+    return null;
 
   return (
     <a

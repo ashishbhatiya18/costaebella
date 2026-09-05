@@ -136,4 +136,10 @@ export const api = {
     request<StockSummaryResponse>(
       `/api/pantrly/summary/stock?range=${range}&anchor_date=${anchorDate}`,
     ),
+
+  // Aligns to an arbitrary [from, to] instead of a fixed week/month bucket —
+  // used by Menuly's consumption reconciliation to match whatever range was
+  // picked there.
+  stockSummaryRange: (from: string, to: string) =>
+    request<StockSummaryResponse>(`/api/pantrly/summary/stock?from=${from}&to=${to}`),
 };

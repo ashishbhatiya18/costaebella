@@ -117,29 +117,48 @@ func (h *Handler) ListPurchases(w http.ResponseWriter, r *http.Request) {
 }
 
 // Summary handles GET /api/pantrly/summary/stock?range=week|month&anchor_date=YYYY-MM-DD
-// Returns computed current stock and low-stock flags for every item, plus
+// or GET /api/pantrly/summary/stock?from=YYYY-MM-DD&to=YYYY-MM-DD (the
+// latter lets callers like Menuly's consumption reconciliation align to an
+// arbitrary date range instead of a fixed week/month bucket). Returns
+// computed current stock and low-stock flags for every item, plus
 // consumption over the requested range where both range endpoints have a
 // logged count.
 func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+
+	var from, to time.Time
 	rangeType := q.Get("range")
-	if rangeType == "" {
-		rangeType = "week"
-	}
-	anchor := time.Now()
-	if a := q.Get("anchor_date"); a != "" {
-		parsed, err := time.Parse("2006-01-02", a)
+	if fromStr, toStr := q.Get("from"), q.Get("to"); fromStr != "" && toStr != "" {
+		var err error
+		from, err = time.Parse("2006-01-02", fromStr)
 		if err != nil {
-			http.Error(w, "invalid anchor_date, expected YYYY-MM-DD", http.StatusBadRequest)
+			http.Error(w, "invalid from, expected YYYY-MM-DD", http.StatusBadRequest)
 			return
 		}
-		anchor = parsed
-	}
-
-	from, to := rangeBounds(rangeType, anchor)
-	if from.IsZero() {
-		http.Error(w, "range must be one of week, month", http.StatusBadRequest)
-		return
+		to, err = time.Parse("2006-01-02", toStr)
+		if err != nil {
+			http.Error(w, "invalid to, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		rangeType = "custom"
+	} else {
+		if rangeType == "" {
+			rangeType = "week"
+		}
+		anchor := time.Now()
+		if a := q.Get("anchor_date"); a != "" {
+			parsed, err := time.Parse("2006-01-02", a)
+			if err != nil {
+				http.Error(w, "invalid anchor_date, expected YYYY-MM-DD", http.StatusBadRequest)
+				return
+			}
+			anchor = parsed
+		}
+		from, to = rangeBounds(rangeType, anchor)
+		if from.IsZero() {
+			http.Error(w, "range must be one of week, month", http.StatusBadRequest)
+			return
+		}
 	}
 
 	items, err := h.repo.Summary(r.Context())

@@ -6,11 +6,10 @@
 // can determine. Instead it packages the raw revenue and expense data
 // already logged in Ledgerly into CA-friendly CSVs, so whoever handles
 // registration/filing has the source numbers to work from. Revisit this
-// once a GSTIN and scheme are confirmed — see CLAUDE.md for the dual-mode
-// revenue model these exports draw from.
+// once a GSTIN and scheme are confirmed.
 
 import { useEffect, useState } from "react";
-import { api, DailyLog, Payment, Sale } from "@/lib/ledgerly/api";
+import { api, Payment, Sale } from "@/lib/ledgerly/api";
 import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
@@ -52,7 +51,6 @@ export default function TaxExportPage() {
   const access = useLedgerlyAccess();
   const [from, setFrom] = useState(firstOfMonth());
   const [to, setTo] = useState(today());
-  const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,34 +58,28 @@ export default function TaxExportPage() {
   useEffect(() => {
     if (access !== "allowed") return;
     setLoading(true);
-    Promise.all([
-      api.listDailyRevenue({ from, to }),
-      api.listSales({ from, to }),
-      api.listPayments({ from, to }),
-    ])
-      .then(([logs, s, p]) => {
-        setDailyLogs(logs ?? []);
+    Promise.all([api.listSales({ from, to }), api.listPayments({ from, to })])
+      .then(([s, p]) => {
         setSales(s ?? []);
         setPayments(p ?? []);
       })
       .finally(() => setLoading(false));
   }, [access, from, to]);
 
-  const revenueTotalCents =
-    dailyLogs.reduce((sum, l) => sum + l.cash_cents + l.card_cents + l.upi_cents, 0) +
-    sales.reduce((sum, s) => sum + s.amount_cents, 0);
+  const revenueTotalCents = sales.reduce((sum, s) => sum + s.amount_cents, 0);
   const expenseTotalCents = payments.reduce((sum, p) => sum + p.amount_cents, 0);
 
   function exportRevenue() {
-    const header = ["date", "source", "payment_method", "amount_inr", "notes"];
+    const header = ["date", "payment_method", "amount_inr", "items", "notes"];
     const body: string[][] = [];
-    for (const l of dailyLogs) {
-      if (l.cash_cents) body.push([l.log_date, "daily_total", "cash", toRupees(l.cash_cents), l.notes ?? ""]);
-      if (l.card_cents) body.push([l.log_date, "daily_total", "card", toRupees(l.card_cents), l.notes ?? ""]);
-      if (l.upi_cents) body.push([l.log_date, "daily_total", "upi", toRupees(l.upi_cents), l.notes ?? ""]);
-    }
     for (const s of sales) {
-      body.push([s.sale_date, "per_sale", s.payment_method, toRupees(s.amount_cents), s.notes ?? ""]);
+      body.push([
+        s.sale_date,
+        s.payment_method,
+        toRupees(s.amount_cents),
+        (s.item_names ?? []).join("; "),
+        s.notes ?? "",
+      ]);
     }
     body.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     downloadCsv(`ledgerly-revenue_${from}_to_${to}.csv`, [header, ...body]);
@@ -111,7 +103,6 @@ export default function TaxExportPage() {
       if (!months.has(key)) months.set(key, { revenue: 0, expenses: 0 });
       return months.get(key)!;
     }
-    for (const l of dailyLogs) bucket(l.log_date).revenue += l.cash_cents + l.card_cents + l.upi_cents;
     for (const s of sales) bucket(s.sale_date).revenue += s.amount_cents;
     for (const p of payments) bucket(p.payment_date).expenses += p.amount_cents;
 

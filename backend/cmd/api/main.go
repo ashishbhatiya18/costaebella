@@ -142,8 +142,6 @@ func main() {
 			lr.Put("/{id}", paymentHandler.Update)
 			lr.Delete("/{id}", paymentHandler.Delete)
 		})
-		pr.Post("/api/ledgerly/revenue/log", revenueHandler.LogDaily)
-		pr.Get("/api/ledgerly/revenue", revenueHandler.ListDaily)
 		pr.Post("/api/ledgerly/revenue/sales", revenueHandler.LogSale)
 		pr.Get("/api/ledgerly/revenue/sales", revenueHandler.ListSales)
 

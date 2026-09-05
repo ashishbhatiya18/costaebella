@@ -35,21 +35,13 @@ export type Payment = {
   notes: string;
 };
 
-export type DailyLog = {
-  id: string;
-  log_date: string;
-  cash_cents: number;
-  card_cents: number;
-  upi_cents: number;
-  notes: string;
-};
-
 export type Sale = {
   id: string;
   sale_date: string;
   amount_cents: number;
   payment_method: string;
   notes: string;
+  item_names: string[];
 };
 
 export type PnlSummary = {
@@ -57,6 +49,10 @@ export type PnlSummary = {
   from: string;
   to: string;
   revenue_cents: number;
+  revenue_cash_cents: number;
+  revenue_card_cents: number;
+  revenue_upi_cents: number;
+  revenue_other_cents: number;
   payments_cents: number;
   purchases_cents: number;
   advances_cents: number;
@@ -77,24 +73,13 @@ export const api = {
   // ApiError(403) otherwise.
   checkAccess: () => request<void>("/api/ledgerly/access"),
 
-  logDailyRevenue: (body: {
-    date?: string;
-    cash_cents: number;
-    card_cents: number;
-    upi_cents: number;
+  logSale: (body: {
+    sale_date?: string;
+    amount_cents: number;
+    payment_method: string;
     notes?: string;
+    item_names?: string[];
   }) =>
-    request<DailyLog>("/api/ledgerly/revenue/log", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  listDailyRevenue: (params: { from: string; to: string }) => {
-    const q = new URLSearchParams({ from: params.from, to: params.to });
-    return request<DailyLog[]>(`/api/ledgerly/revenue?${q.toString()}`);
-  },
-
-  logSale: (body: { sale_date?: string; amount_cents: number; payment_method: string; notes?: string }) =>
     request<Sale>("/api/ledgerly/revenue/sales", {
       method: "POST",
       body: JSON.stringify(body),

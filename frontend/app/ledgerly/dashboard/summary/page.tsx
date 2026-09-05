@@ -69,6 +69,12 @@ export default function PnlSummaryPage() {
             <Card className="p-5">
               <p className="text-xs uppercase tracking-wide text-navy/50">Revenue</p>
               <p className="mt-2 font-display text-2xl text-navy">{formatINR(summary.revenue_cents)}</p>
+              <p className="mt-1 text-xs text-navy/50">
+                {formatINR(summary.revenue_cash_cents)} cash + {formatINR(summary.revenue_card_cents)} card
+                {" + "}
+                {formatINR(summary.revenue_upi_cents)} UPI
+                {summary.revenue_other_cents > 0 && <> + {formatINR(summary.revenue_other_cents)} other</>}
+              </p>
             </Card>
             <Card className="p-5">
               <p className="text-xs uppercase tracking-wide text-navy/50">Expenses</p>

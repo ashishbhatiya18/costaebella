@@ -46,10 +46,14 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 	fromStr, toStr := from.Format("2006-01-02"), to.Format("2006-01-02")
 
-	revenueCents, err := h.revenue.RangeRevenue(r.Context(), fromStr, toStr)
+	revenueByMethod, err := h.revenue.RangeRevenueByMethod(r.Context(), fromStr, toStr)
 	if err != nil {
 		http.Error(w, "failed to compute revenue", http.StatusInternalServerError)
 		return
+	}
+	var revenueCents int64
+	for _, v := range revenueByMethod {
+		revenueCents += v
 	}
 
 	paymentsCents, err := h.payments.RangeTotal(r.Context(), fromStr, toStr)
@@ -79,16 +83,20 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	expensesCents := paymentsCents + purchasesCents + advancesCents
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"range":             rangeType,
-		"from":              fromStr,
-		"to":                toStr,
-		"revenue_cents":     revenueCents,
-		"payments_cents":    paymentsCents,
-		"purchases_cents":   purchasesCents,
-		"advances_cents":    advancesCents,
-		"expenses_cents":    expensesCents,
-		"profit_cents":      revenueCents - expensesCents,
-		"pantrly_purchases": purchases,
+		"range":               rangeType,
+		"from":                fromStr,
+		"to":                  toStr,
+		"revenue_cents":       revenueCents,
+		"revenue_cash_cents":  revenueByMethod["cash"],
+		"revenue_card_cents":  revenueByMethod["card"],
+		"revenue_upi_cents":   revenueByMethod["upi"],
+		"revenue_other_cents": revenueByMethod["other"],
+		"payments_cents":      paymentsCents,
+		"purchases_cents":     purchasesCents,
+		"advances_cents":      advancesCents,
+		"expenses_cents":      expensesCents,
+		"profit_cents":        revenueCents - expensesCents,
+		"pantrly_purchases":   purchases,
 	})
 }
 

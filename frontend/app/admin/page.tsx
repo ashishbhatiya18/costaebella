@@ -34,6 +34,12 @@ const APPS: LauncherApp[] = [
     description: "Menu item visibility and dish-level sales analytics.",
     gated: true,
   },
+  {
+    name: "Intel-ly",
+    href: "/intelly",
+    description: "Cross-app restaurant health — margins, staffing, and trends.",
+    gated: true,
+  },
 ];
 
 export default function AdminHomePage() {

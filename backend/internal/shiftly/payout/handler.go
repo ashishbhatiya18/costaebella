@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"attendance-app/costaebella-backend/internal/shiftly/advance"
 	"attendance-app/costaebella-backend/internal/shiftly/attendance"
 	"attendance-app/costaebella-backend/internal/shiftly/employee"
 )
@@ -12,10 +13,11 @@ import (
 type Handler struct {
 	employees   *employee.Repo
 	attendances *attendance.Repo
+	advances    *advance.Repo
 }
 
-func NewHandler(employees *employee.Repo, attendances *attendance.Repo) *Handler {
-	return &Handler{employees: employees, attendances: attendances}
+func NewHandler(employees *employee.Repo, attendances *attendance.Repo, advances *advance.Repo) *Handler {
+	return &Handler{employees: employees, attendances: attendances, advances: advances}
 }
 
 // AttendanceSummary handles GET /api/shiftly/summary/attendance?range=week|month|quarter&anchor_date=YYYY-MM-DD
@@ -92,10 +94,15 @@ func (h *Handler) PayoutSummary(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load attendance", http.StatusInternalServerError)
 		return
 	}
+	advanceTotals, err := h.advances.RangeTotalsByEmployee(r.Context(), monthStart.Format("2006-01-02"), monthEnd.Format("2006-01-02"))
+	if err != nil {
+		http.Error(w, "failed to load advances", http.StatusInternalServerError)
+		return
+	}
 
 	results := make([]EmployeePayout, 0, len(employees))
 	for _, e := range employees {
-		results = append(results, ComputePayout(e, logs, monthStart, monthEnd))
+		results = append(results, ComputePayout(e, logs, monthStart, monthEnd, advanceTotals[e.ID]))
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -88,6 +88,8 @@ type EmployeePayout struct {
 	BasePayCents        int64   `json:"base_pay_cents"`
 	BonusPayCents       int64   `json:"bonus_pay_cents"`
 	PayoutCents         int64   `json:"payout_cents"`
+	AdvanceCents        int64   `json:"advance_cents"`
+	NetPayoutCents      int64   `json:"net_payout_cents"`
 	ProratedFraction    float64 `json:"prorated_fraction"`
 }
 
@@ -321,7 +323,7 @@ func ComputeAvailability(e employee.Employee, logs []attendance.Log, from, to ti
 //   - The daily rate is the prorated monthly pay divided by the number of
 //     countable calendar days in the period (not just committed days),
 //     since weekly offs are now part of the paid base.
-func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, monthEnd time.Time) EmployeePayout {
+func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, monthEnd time.Time, advanceCents int64) EmployeePayout {
 	avail := ComputeAvailability(e, logs, monthStart, monthEnd)
 
 	fraction := prorationFraction(e.StartDate, monthStart, monthEnd)
@@ -384,6 +386,10 @@ func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, month
 	if payout < 0 {
 		payout = 0
 	}
+	netPayout := payout - advanceCents
+	if netPayout < 0 {
+		netPayout = 0
+	}
 
 	return EmployeePayout{
 		EmployeeID:          e.ID,
@@ -402,6 +408,8 @@ func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, month
 		BasePayCents:        int64(math.Round(basePay)),
 		BonusPayCents:       int64(math.Round(bonusPay)),
 		PayoutCents:         payout,
+		AdvanceCents:        advanceCents,
+		NetPayoutCents:      netPayout,
 		ProratedFraction:    fraction,
 	}
 }

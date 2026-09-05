@@ -19,6 +19,7 @@ import (
 	"attendance-app/costaebella-backend/internal/pantrly/item"
 	"attendance-app/costaebella-backend/internal/pantrly/stock"
 	"attendance-app/costaebella-backend/internal/pantrly/supplier"
+	"attendance-app/costaebella-backend/internal/shiftly/advance"
 	"attendance-app/costaebella-backend/internal/shiftly/attendance"
 	"attendance-app/costaebella-backend/internal/shiftly/employee"
 	"attendance-app/costaebella-backend/internal/shiftly/payout"
@@ -54,6 +55,7 @@ func main() {
 
 	employeeRepo := employee.NewRepo(pool)
 	attendanceRepo := attendance.NewRepo(pool)
+	advanceRepo := advance.NewRepo(pool)
 	itemRepo := item.NewRepo(pool)
 	supplierRepo := supplier.NewRepo(pool)
 	stockRepo := stock.NewRepo(pool)
@@ -63,13 +65,14 @@ func main() {
 	authHandler := auth.NewHandler(authSvc)
 	employeeHandler := employee.NewHandler(employeeRepo)
 	attendanceHandler := attendance.NewHandler(attendanceRepo)
-	payoutHandler := payout.NewHandler(employeeRepo, attendanceRepo)
+	advanceHandler := advance.NewHandler(advanceRepo)
+	payoutHandler := payout.NewHandler(employeeRepo, attendanceRepo, advanceRepo)
 	itemHandler := item.NewHandler(itemRepo)
 	supplierHandler := supplier.NewHandler(supplierRepo)
 	stockHandler := stock.NewHandler(stockRepo)
 	revenueHandler := revenue.NewHandler(revenueRepo)
 	paymentHandler := payment.NewHandler(paymentRepo)
-	pnlHandler := pnl.NewHandler(revenueRepo, paymentRepo, stockRepo)
+	pnlHandler := pnl.NewHandler(revenueRepo, paymentRepo, stockRepo, advanceRepo)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logging)
@@ -97,6 +100,14 @@ func main() {
 		pr.Put("/api/shiftly/attendance/override", attendanceHandler.Override)
 		pr.Get("/api/shiftly/attendance", attendanceHandler.List)
 		pr.Get("/api/shiftly/attendance/activity", attendanceHandler.Activity)
+
+		pr.Route("/api/shiftly/advances", func(ar chi.Router) {
+			ar.Get("/", advanceHandler.List)
+			ar.Post("/", advanceHandler.Create)
+			ar.Get("/{id}", advanceHandler.Get)
+			ar.Put("/{id}", advanceHandler.Update)
+			ar.Delete("/{id}", advanceHandler.Delete)
+		})
 
 		pr.Get("/api/shiftly/summary/attendance", payoutHandler.AttendanceSummary)
 		pr.Get("/api/shiftly/summary/payout", payoutHandler.PayoutSummary)

@@ -75,6 +75,8 @@ export default function PnlSummaryPage() {
               <p className="mt-2 font-display text-2xl text-navy">{formatINR(summary.expenses_cents)}</p>
               <p className="mt-1 text-xs text-navy/50">
                 {formatINR(summary.payments_cents)} payments + {formatINR(summary.purchases_cents)} Pantrly deliveries
+                {" + "}
+                {formatINR(summary.advances_cents)} advances
               </p>
             </Card>
             <Card className="p-5">

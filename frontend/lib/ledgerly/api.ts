@@ -59,6 +59,7 @@ export type PnlSummary = {
   revenue_cents: number;
   payments_cents: number;
   purchases_cents: number;
+  advances_cents: number;
   expenses_cents: number;
   profit_cents: number;
   pantrly_purchases: {

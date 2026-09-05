@@ -44,7 +44,7 @@ export default function PayoutSummaryPage() {
     api.payoutSummary(month).then(setData).finally(() => setLoading(false));
   }, [month]);
 
-  const total = data?.employees.reduce((sum, e) => sum + e.payout_cents, 0) ?? 0;
+  const total = data?.employees.reduce((sum, e) => sum + e.net_payout_cents, 0) ?? 0;
 
   return (
     <div>
@@ -68,7 +68,7 @@ export default function PayoutSummaryPage() {
       ) : (
         <>
           <Card className="mb-4 flex items-center justify-between p-5">
-            <span className="text-sm text-navy/60">Total payout for {data?.month}</span>
+            <span className="text-sm text-navy/60">Total net payout for {data?.month}</span>
             <span className="text-2xl font-semibold text-navy">{formatMoney(total)}</span>
           </Card>
 
@@ -84,7 +84,8 @@ export default function PayoutSummaryPage() {
                   <th className="px-5 py-3 font-medium">Leaves used</th>
                   <th className="px-5 py-3 font-medium">Unpaid</th>
                   <th className="px-5 py-3 font-medium">Bonus hrs</th>
-                  <th className="px-5 py-3 text-right font-medium">Payout</th>
+                  <th className="px-5 py-3 text-right font-medium">Advance</th>
+                  <th className="px-5 py-3 text-right font-medium">Net payout</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-navy/10">
@@ -120,8 +121,11 @@ export default function PayoutSummaryPage() {
                         "0"
                       )}
                     </td>
+                    <td className="px-5 py-3 text-right text-coral">
+                      {e.advance_cents > 0 ? `- ${formatMoney(e.advance_cents)}` : "—"}
+                    </td>
                     <td className="px-5 py-3 text-right font-semibold text-navy">
-                      {formatMoney(e.payout_cents)}
+                      {formatMoney(e.net_payout_cents)}
                       {e.bonus_pay_cents > 0 && (
                         <div className="mt-0.5 text-right text-xs font-normal text-teal">
                           incl. {formatMoney(e.bonus_pay_cents)} bonus
@@ -138,7 +142,7 @@ export default function PayoutSummaryPage() {
                 ))}
                 {data?.employees.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-5 py-8 text-center text-navy/50">
+                    <td colSpan={10} className="px-5 py-8 text-center text-navy/50">
                       No employees to show yet.
                     </td>
                   </tr>

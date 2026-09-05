@@ -76,6 +76,35 @@ export const api = {
 
   payoutSummary: (month: string) =>
     request<PayoutSummaryResponse>(`/api/shiftly/summary/payout?month=${month}`),
+
+  listAdvances: (params: { employee_id?: string; from: string; to: string }) => {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    if (params.employee_id) q.set("employee_id", params.employee_id);
+    return request<Advance[]>(`/api/shiftly/advances/?${q.toString()}`);
+  },
+
+  createAdvance: (a: Partial<Advance>) =>
+    request<Advance>("/api/shiftly/advances/", {
+      method: "POST",
+      body: JSON.stringify(a),
+    }),
+
+  updateAdvance: (id: string, a: Partial<Advance>) =>
+    request<Advance>(`/api/shiftly/advances/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(a),
+    }),
+
+  deleteAdvance: (id: string) =>
+    request<void>(`/api/shiftly/advances/${id}`, { method: "DELETE" }),
+};
+
+export type Advance = {
+  id: string;
+  employee_id: string;
+  amount_cents: number;
+  advance_date: string;
+  notes: string;
 };
 
 export type ShiftInterval = {
@@ -185,6 +214,8 @@ export type EmployeePayout = {
   base_pay_cents: number;
   bonus_pay_cents: number;
   payout_cents: number;
+  advance_cents: number;
+  net_payout_cents: number;
   prorated_fraction: number;
 };
 

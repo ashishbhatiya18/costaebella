@@ -8,16 +8,18 @@ import (
 	"attendance-app/costaebella-backend/internal/ledgerly/payment"
 	"attendance-app/costaebella-backend/internal/ledgerly/revenue"
 	"attendance-app/costaebella-backend/internal/pantrly/stock"
+	"attendance-app/costaebella-backend/internal/shiftly/advance"
 )
 
 type Handler struct {
 	revenue  *revenue.Repo
 	payments *payment.Repo
 	stock    *stock.Repo
+	advances *advance.Repo
 }
 
-func NewHandler(revenue *revenue.Repo, payments *payment.Repo, stock *stock.Repo) *Handler {
-	return &Handler{revenue: revenue, payments: payments, stock: stock}
+func NewHandler(revenue *revenue.Repo, payments *payment.Repo, stock *stock.Repo, advances *advance.Repo) *Handler {
+	return &Handler{revenue: revenue, payments: payments, stock: stock, advances: advances}
 }
 
 // Summary handles GET /api/ledgerly/summary/pnl?range=week|month&anchor_date=YYYY-MM-DD
@@ -68,7 +70,13 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	expensesCents := paymentsCents + purchasesCents
+	advancesCents, err := h.advances.RangeTotal(r.Context(), fromStr, toStr)
+	if err != nil {
+		http.Error(w, "failed to compute advances total", http.StatusInternalServerError)
+		return
+	}
+
+	expensesCents := paymentsCents + purchasesCents + advancesCents
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"range":             rangeType,
@@ -77,6 +85,7 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		"revenue_cents":     revenueCents,
 		"payments_cents":    paymentsCents,
 		"purchases_cents":   purchasesCents,
+		"advances_cents":    advancesCents,
 		"expenses_cents":    expensesCents,
 		"profit_cents":      revenueCents - expensesCents,
 		"pantrly_purchases": purchases,

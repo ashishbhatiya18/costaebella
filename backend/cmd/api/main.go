@@ -111,6 +111,7 @@ func main() {
 
 		pr.Get("/api/shiftly/summary/attendance", payoutHandler.AttendanceSummary)
 		pr.Get("/api/shiftly/summary/payout", payoutHandler.PayoutSummary)
+		pr.Get("/api/shiftly/summary/labor-cost", payoutHandler.LaborCostSummary)
 
 		pr.Route("/api/pantrly/items", func(ir chi.Router) {
 			ir.Get("/", itemHandler.List)

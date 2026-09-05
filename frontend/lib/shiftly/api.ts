@@ -77,6 +77,9 @@ export const api = {
   payoutSummary: (month: string) =>
     request<PayoutSummaryResponse>(`/api/shiftly/summary/payout?month=${month}`),
 
+  laborCostSummary: (from: string, to: string) =>
+    request<LaborCostSummaryResponse>(`/api/shiftly/summary/labor-cost?from=${from}&to=${to}`),
+
   listAdvances: (params: { employee_id?: string; from: string; to: string }) => {
     const q = new URLSearchParams({ from: params.from, to: params.to });
     if (params.employee_id) q.set("employee_id", params.employee_id);
@@ -222,4 +225,15 @@ export type EmployeePayout = {
 export type PayoutSummaryResponse = {
   month: string;
   employees: EmployeePayout[];
+};
+
+export type LaborCostSummaryResponse = {
+  from: string;
+  to: string;
+  days: {
+    date: string;
+    cost_cents: number;
+    irregular_count: number;
+    employee_day_count: number;
+  }[];
 };

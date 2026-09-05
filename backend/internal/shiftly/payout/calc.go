@@ -91,6 +91,25 @@ type EmployeePayout struct {
 	AdvanceCents        int64   `json:"advance_cents"`
 	NetPayoutCents      int64   `json:"net_payout_cents"`
 	ProratedFraction    float64 `json:"prorated_fraction"`
+
+	// DailyCosts is this employee's gross labor cost broken out by day for
+	// the computed month — the per-day dayCredit/bonus used here already
+	// reflects the permitted-leave-allowance downgrade applied below, so
+	// callers needing a sub-month cost figure (e.g. Intel-ly's staffing-vs-
+	// revenue correlation) should slice this rather than re-deriving it
+	// from EmployeeAvailability directly (which doesn't have the cap applied).
+	DailyCosts []DailyLaborCost `json:"-"`
+}
+
+// DailyLaborCost is one employee's computed gross labor cost for a single
+// day within a ComputePayout run. Category is the post-permitted-leave-cap
+// category (so a leave day already downgraded to unpaid_leave shows as
+// such here) — callers use it to flag days where staffing deviated from a
+// normal full day (half_day, absent, leave, unpaid_leave).
+type DailyLaborCost struct {
+	Date      string `json:"date"`
+	Category  string `json:"category"`
+	CostCents int64  `json:"cost_cents"`
 }
 
 // parseDate parses a YYYY-MM-DD date, returning ok=false if empty/invalid.
@@ -351,6 +370,7 @@ func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, month
 		leaveUsed, leavesTaken, unpaidLeaveDays                 int
 	)
 
+	dailyCosts := make([]DailyLaborCost, 0, len(avail.Days))
 	for _, d := range avail.Days {
 		category := d.Category
 		dayCredit := d.DayCredit
@@ -376,6 +396,9 @@ func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, month
 		case CategoryWeeklyOff, CategoryWeeklyOffWorked:
 			weeklyOffCount++
 		}
+
+		dayCost := dayCredit*dailyRateCents + d.BonusHours*hourlyRateCents
+		dailyCosts = append(dailyCosts, DailyLaborCost{Date: d.Date, Category: category, CostCents: int64(math.Round(dayCost))})
 
 		basePay += dayCredit * dailyRateCents
 		bonusHours += d.BonusHours
@@ -411,6 +434,7 @@ func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, month
 		AdvanceCents:        advanceCents,
 		NetPayoutCents:      netPayout,
 		ProratedFraction:    fraction,
+		DailyCosts:          dailyCosts,
 	}
 }
 

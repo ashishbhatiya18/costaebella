@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import type { MenuCategory } from "@/lib/data";
+import { fetchPublicHiddenItems } from "@/lib/menuly/api";
 
 const VARIANT_LABELS: Record<string, string> = {
   veg: "Veg",
@@ -9,10 +13,25 @@ const VARIANT_LABELS: Record<string, string> = {
   fish: "Fish",
 };
 
+// Client component so 86'd items can be hidden without a full static-export
+// rebuild — categories/items are still baked in at build time (unchanged
+// for SEO/structured data), we just filter out hidden ones once the
+// visibility list loads. Items are briefly visible until that fetch
+// resolves; an unreachable backend just leaves everything visible.
 export default function MenuSection({ categories }: { categories: MenuCategory[] }) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetchPublicHiddenItems().then((names) => setHidden(new Set(names)));
+  }, []);
+
+  const visibleCategories = categories
+    .map((cat) => ({ ...cat, items: cat.items.filter((item) => !hidden.has(item.name)) }))
+    .filter((cat) => cat.items.length > 0);
+
   return (
     <div className="space-y-14">
-      {categories.map((cat) => (
+      {visibleCategories.map((cat) => (
         <div key={cat.category} data-gtm-event="view_menu_category" data-gtm-label={cat.category}>
           <h3 className="font-display text-2xl text-teal mb-6 border-b border-teal/20 pb-2">
             {cat.category}

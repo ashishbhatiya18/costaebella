@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useAuth } from "@/lib/admin/auth-context";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
 
 type LauncherApp = {
   name: string;
   href: string;
   description: string;
+  gated?: boolean;
 };
 
 const APPS: LauncherApp[] = [
@@ -26,11 +28,19 @@ const APPS: LauncherApp[] = [
     href: "/ledgerly",
     description: "Restaurant revenue and expenditure tracker — daily sales, payments, and P&L.",
   },
+  {
+    name: "Menuly",
+    href: "/menuly",
+    description: "Menu item visibility and dish-level sales analytics.",
+    gated: true,
+  },
 ];
 
 export default function AdminHomePage() {
   usePageTitle("Apps");
   const { email, logout } = useAuth();
+  const ledgerlyAccess = useLedgerlyAccess();
+  const apps = APPS.filter((app) => !app.gated || ledgerlyAccess === "allowed");
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-16">
@@ -55,7 +65,7 @@ export default function AdminHomePage() {
       </header>
 
       <div className="grid gap-6 sm:grid-cols-2">
-        {APPS.map((app) => (
+        {apps.map((app) => (
           <Link
             key={app.href}
             href={app.href}

@@ -15,6 +15,8 @@ import (
 	"attendance-app/costaebella-backend/internal/ledgerly/payment"
 	"attendance-app/costaebella-backend/internal/ledgerly/pnl"
 	"attendance-app/costaebella-backend/internal/ledgerly/revenue"
+	"attendance-app/costaebella-backend/internal/menuly/composition"
+	"attendance-app/costaebella-backend/internal/menuly/visibility"
 	"attendance-app/costaebella-backend/internal/middleware"
 	"attendance-app/costaebella-backend/internal/pantrly/item"
 	"attendance-app/costaebella-backend/internal/pantrly/stock"
@@ -61,6 +63,8 @@ func main() {
 	stockRepo := stock.NewRepo(pool)
 	revenueRepo := revenue.NewRepo(pool)
 	paymentRepo := payment.NewRepo(pool)
+	visibilityRepo := visibility.NewRepo(pool)
+	compositionRepo := composition.NewRepo(pool)
 
 	authHandler := auth.NewHandler(authSvc)
 	employeeHandler := employee.NewHandler(employeeRepo)
@@ -73,6 +77,8 @@ func main() {
 	revenueHandler := revenue.NewHandler(revenueRepo)
 	paymentHandler := payment.NewHandler(paymentRepo)
 	pnlHandler := pnl.NewHandler(revenueRepo, paymentRepo, stockRepo, advanceRepo)
+	visibilityHandler := visibility.NewHandler(visibilityRepo)
+	compositionHandler := composition.NewHandler(compositionRepo)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logging)
@@ -84,6 +90,10 @@ func main() {
 	})
 
 	r.Post("/api/auth/google", authHandler.GoogleLogin)
+
+	// Unauthenticated — the public marketing site (no admin session) polls
+	// this to hide 86'd items without a full static-export rebuild.
+	r.Get("/api/menuly/visibility/public", visibilityHandler.PublicList)
 
 	r.Group(func(pr chi.Router) {
 		pr.Use(middleware.RequireAuth(authSvc))
@@ -146,13 +156,24 @@ func main() {
 		pr.Post("/api/ledgerly/revenue/sales", revenueHandler.LogSale)
 		pr.Get("/api/ledgerly/revenue/sales", revenueHandler.ListSales)
 
-		// Ledgerly P&L summary — narrower whitelist on top of RequireAuth.
+		// Ledgerly P&L summary, and the whole of Menuly/Intel-ly — narrower
+		// whitelist on top of RequireAuth. Intel-ly has no routes of its own
+		// (it only composes other apps' endpoints client-side), so gating
+		// Menuly here plus the frontend app-level gate is what actually
+		// restricts it.
 		pr.Group(func(gr chi.Router) {
 			gr.Use(access.RequireLedgerlyAdmin(ledgerlyAccessRepo))
 			gr.Get("/api/ledgerly/access", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNoContent)
 			})
 			gr.Get("/api/ledgerly/summary/pnl", pnlHandler.Summary)
+
+			gr.Get("/api/menuly/visibility", visibilityHandler.List)
+			gr.Put("/api/menuly/visibility", visibilityHandler.Set)
+
+			gr.Get("/api/menuly/composition", compositionHandler.List)
+			gr.Put("/api/menuly/composition", compositionHandler.Set)
+			gr.Delete("/api/menuly/composition/{id}", compositionHandler.Delete)
 		})
 	})
 

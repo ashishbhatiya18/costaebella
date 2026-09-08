@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, Item, Supplier } from "@/lib/pantrly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Card } from "@/components/admin/ui/card";
+import { Input } from "@/components/admin/ui/input";
 import { Modal } from "@/components/admin/ui/modal";
 import { ItemForm, ItemFormValue } from "@/components/pantrly/item-form";
 import { RecordDeliveryForm, DeliveryFormValue } from "@/components/pantrly/record-delivery-form";
@@ -17,6 +18,16 @@ export default function ItemsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Item | null>(null);
   const [deliveryFor, setDeliveryFor] = useState<Item | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredItems = items.filter((it) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      it.name.toLowerCase().includes(q) ||
+      (it.category ?? "").toLowerCase().includes(q)
+    );
+  });
 
   async function load() {
     setLoading(true);
@@ -80,15 +91,30 @@ export default function ItemsPage() {
         <Button onClick={openCreate}>+ Add item</Button>
       </div>
 
+      {!loading && items.length > 0 && (
+        <div className="mb-4 max-w-sm">
+          <Input
+            type="search"
+            placeholder="Search items…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>
       ) : items.length === 0 ? (
         <Card className="p-10 text-center text-navy/50">
           No items yet. Add your first one to get started.
         </Card>
+      ) : filteredItems.length === 0 ? (
+        <Card className="p-10 text-center text-navy/50">
+          No items match &ldquo;{search}&rdquo;.
+        </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((it) => (
+          {filteredItems.map((it) => (
             <Card key={it.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div>

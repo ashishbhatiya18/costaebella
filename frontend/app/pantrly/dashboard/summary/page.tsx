@@ -7,6 +7,7 @@ import { api as menulyApi } from "@/lib/menuly/api";
 import { Card } from "@/components/admin/ui/card";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { ItemDetailModal } from "@/components/pantrly/item-detail-modal";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -45,6 +46,7 @@ export default function StockSummaryPage() {
   const [summary, setSummary] = useState<StockSummaryResponse | null>(null);
   const [expected, setExpected] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<{ id: string; name: string; unit: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,8 +140,16 @@ export default function StockSummaryPage() {
                   ? it.consumed_in_range - expectedQty
                   : null;
                 return (
-                  <tr key={it.item_id} className="border-b border-navy/5 last:border-0">
-                    <td className="px-5 py-3 font-medium text-navy">{it.item_name}</td>
+                  <tr
+                    key={it.item_id}
+                    className="cursor-pointer border-b border-navy/5 last:border-0 hover:bg-navy/5"
+                    onClick={() =>
+                      setSelectedItem({ id: it.item_id, name: it.item_name, unit: it.unit })
+                    }
+                  >
+                    <td className="px-5 py-3 font-medium text-navy underline-offset-2 hover:underline">
+                      {it.item_name}
+                    </td>
                     <td className="px-5 py-3 text-navy/80">
                       {it.current_stock} {it.unit}
                     </td>
@@ -195,6 +205,13 @@ export default function StockSummaryPage() {
           </table>
         </Card>
       )}
+
+      <ItemDetailModal
+        itemId={selectedItem?.id ?? null}
+        itemName={selectedItem?.name ?? ""}
+        unit={selectedItem?.unit ?? ""}
+        onClose={() => setSelectedItem(null)}
+      />
     </div>
   );
 }

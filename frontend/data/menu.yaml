@@ -86,17 +86,24 @@ coffee:
       - name: "Solkadi Matcha"
         price: 318
         description: "A Goan twist! Solkadi's tang meets earthy matcha for a refreshing, probiotic-rich and uniquely local fusion."
+      - name: "Goan Solkadi"
+        price: 190
+        description: "A traditional Goan cooler made with kokum, coconut milk, sugar and aromatic spices. Tangy, creamy and incredibly refreshing."
       - name: "V60"
         price: 199
         description: "Pour-over brewed coffee using a cone-shaped dripper and paper filter for clean, rich flavours."
       - name: "Cold Brew Sangria"
         price: 210
+        description: "A refreshing twist on the classic sangria, infused with cold brew coffee."
       - name: "Orange Cold Brew"
         price: 210
+        description: "Cold brew coffee with a zesty kick of orange for a bright and invigorating sip."
       - name: "Classic Cold Brew"
         price: 189
+        description: "A simple and classic cold brew coffee for a smooth and refreshing experience."
       - name: "Vietnamese Cold Brew"
         price: 210
+        description: "A Vietnamese-style cold brew coffee with a rich and bold flavour."
 
   - category: "Cold Coffee"
     items:

@@ -127,7 +127,7 @@ export default function TaxExportPage() {
         <Card className="mt-6 p-10 text-center">
           <p className="font-medium text-navy">You don&apos;t have access to Tax Export.</p>
           <p className="mt-1 text-sm text-navy/60">
-            This view is restricted to a small set of emails. Log Revenue and Payments are still available to you.
+            This view is restricted to a small set of emails. Log Income and Expense are still available to you.
           </p>
         </Card>
       </div>
@@ -140,7 +140,7 @@ export default function TaxExportPage() {
         <div>
           <h1 className="font-display text-2xl text-navy">Tax Export</h1>
           <p className="mt-1 text-sm text-navy/60">
-            Download the logged revenue and expenses for your CA to use during GST registration/filing.
+            Download the logged income and expenses for your CA to use during GST registration/filing.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -161,7 +161,7 @@ export default function TaxExportPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-navy/50">Revenue in range</p>
+          <p className="text-xs uppercase tracking-wide text-navy/50">Income in range</p>
           <p className="mt-2 font-display text-2xl text-navy">{loading ? "…" : formatINR(revenueTotalCents)}</p>
         </Card>
         <Card className="p-5">
@@ -180,7 +180,7 @@ export default function TaxExportPage() {
         <h3 className="mb-3 font-semibold text-navy">Downloads</h3>
         <div className="flex flex-wrap gap-3">
           <Button onClick={exportRevenue} disabled={loading}>
-            Revenue CSV
+            Income CSV
           </Button>
           <Button onClick={exportExpenses} disabled={loading}>
             Expenses CSV

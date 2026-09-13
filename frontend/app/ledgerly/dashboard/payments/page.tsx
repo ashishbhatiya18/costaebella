@@ -36,7 +36,7 @@ function today() {
 }
 
 export default function PaymentsPage() {
-  usePageTitle("Payments");
+  usePageTitle("Expense");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -85,7 +85,7 @@ export default function PaymentsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this payment? This cannot be undone.")) return;
+    if (!confirm("Delete this expense? This cannot be undone.")) return;
     await ledgerlyApi.deletePayment(id);
     await load();
   }
@@ -94,18 +94,18 @@ export default function PaymentsPage() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl text-navy">Payments</h1>
+          <h1 className="font-display text-2xl text-navy">Expense</h1>
           <p className="mt-1 text-sm text-navy/60">
-            Every outgoing payment — restaurant expenses, supplier purchases, salaries, or anything else.
+            Every outgoing expense — restaurant expenses, supplier purchases, salaries, or anything else.
           </p>
         </div>
-        <Button onClick={openCreate}>+ Add payment</Button>
+        <Button onClick={openCreate}>+ Add expense</Button>
       </div>
 
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>
       ) : payments.length === 0 ? (
-        <Card className="p-10 text-center text-navy/50">No payments logged this month yet.</Card>
+        <Card className="p-10 text-center text-navy/50">No expenses logged this month yet.</Card>
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -132,7 +132,7 @@ export default function PaymentsPage() {
                       <Button size="sm" variant="secondary" onClick={() => openEdit(p)}>
                         Edit
                       </Button>
-                      <IconButton variant="danger" onClick={() => handleDelete(p.id)} aria-label="Delete payment">
+                      <IconButton variant="danger" onClick={() => handleDelete(p.id)} aria-label="Delete expense">
                         <TrashIcon />
                       </IconButton>
                     </div>
@@ -147,7 +147,7 @@ export default function PaymentsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Edit payment" : "Add payment"}
+        title={editing ? "Edit expense" : "Add expense"}
       >
         <PaymentForm
           initial={editing ?? undefined}
@@ -155,7 +155,7 @@ export default function PaymentsPage() {
           suppliers={suppliers}
           onSubmit={handleSubmit}
           onCancel={() => setModalOpen(false)}
-          submitLabel={editing ? "Save changes" : "Add payment"}
+          submitLabel={editing ? "Save changes" : "Add expense"}
         />
       </Modal>
     </div>

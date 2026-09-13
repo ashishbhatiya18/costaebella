@@ -80,7 +80,7 @@ export function PaymentForm({
         notes,
       });
     } catch {
-      setError("Failed to save payment.");
+      setError("Failed to save expense.");
     } finally {
       setSubmitting(false);
     }

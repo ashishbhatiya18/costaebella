@@ -6,6 +6,7 @@ import { api as pantrlyApi, Item as PantrlyItem } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
+import { getCompatibleUnits, convertToItemUnit } from "@/lib/pantrly/units";
 
 export function CompositionModal({
   itemName,
@@ -19,6 +20,7 @@ export function CompositionModal({
   const [loading, setLoading] = useState(true);
   const [selectedPantrlyItemId, setSelectedPantrlyItemId] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [entryUnit, setEntryUnit] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,10 +46,17 @@ export function CompositionModal({
   const usedIds = new Set(entries.map((e) => e.pantrly_item_id));
   const availableItems = pantrlyItems.filter((i) => !usedIds.has(i.id));
   const selected = availableItems.find((i) => i.id === selectedPantrlyItemId);
+  const compatibleUnits = selected ? getCompatibleUnits(selected.unit) : [];
+
+  function handleSelectItem(id: string) {
+    setSelectedPantrlyItemId(id);
+    const item = availableItems.find((i) => i.id === id);
+    setEntryUnit(item?.unit ?? "");
+  }
 
   async function addEntry() {
     const qty = Number(quantity);
-    if (!selectedPantrlyItemId) {
+    if (!selectedPantrlyItemId || !selected) {
       setError("Select a Pantrly item.");
       return;
     }
@@ -58,9 +67,15 @@ export function CompositionModal({
     setSubmitting(true);
     setError(null);
     try {
-      await api.setComposition(itemName, selectedPantrlyItemId, qty);
+      // Recipes are entered in whatever scale is natural (e.g. grams for a
+      // pinch of something tracked in kg) but stored in the item's own
+      // tracked unit, since that's what stock deduction/consumption math
+      // elsewhere assumes.
+      const qtyInItemUnit = convertToItemUnit(qty, entryUnit, selected.unit);
+      await api.setComposition(itemName, selectedPantrlyItemId, qtyInItemUnit);
       setSelectedPantrlyItemId("");
       setQuantity("");
+      setEntryUnit("");
       await load();
     } catch {
       setError("Failed to save.");
@@ -109,7 +124,7 @@ export function CompositionModal({
               <select
                 id="composition-item"
                 value={selectedPantrlyItemId}
-                onChange={(e) => setSelectedPantrlyItemId(e.target.value)}
+                onChange={(e) => handleSelectItem(e.target.value)}
                 className="w-full rounded-xl border border-navy/15 bg-cream/40 px-3.5 py-2.5 text-sm text-navy outline-none transition-colors focus:border-teal focus:ring-2 focus:ring-teal/20"
               >
                 <option value="">Select…</option>
@@ -120,18 +135,45 @@ export function CompositionModal({
                 ))}
               </select>
             </div>
-            <div className="w-32">
-              <Label htmlFor="composition-qty">
-                Qty {selected ? `(${selected.unit})` : ""}
-              </Label>
-              <Input
-                id="composition-qty"
-                type="number"
-                step="any"
-                min={0}
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-              />
+            <div className="w-40">
+              <Label htmlFor="composition-qty">Qty per order</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="composition-qty"
+                  type="number"
+                  step="any"
+                  min={0}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="flex-1"
+                  disabled={!selected}
+                />
+                {selected && compatibleUnits.length > 1 ? (
+                  <select
+                    value={entryUnit}
+                    onChange={(e) => setEntryUnit(e.target.value)}
+                    aria-label="Quantity unit"
+                    className="rounded-lg border border-navy/15 bg-navy/5 px-2 py-2 text-sm text-navy/70 outline-none"
+                  >
+                    {compatibleUnits.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  selected && (
+                    <span className="whitespace-nowrap rounded-lg bg-navy/5 px-2.5 py-2 text-sm text-navy/50">
+                      {selected.unit}
+                    </span>
+                  )
+                )}
+              </div>
+              {selected && entryUnit && entryUnit !== selected.unit && quantity && !isNaN(Number(quantity)) && (
+                <p className="mt-1 text-xs text-navy/40">
+                  = {convertToItemUnit(Number(quantity), entryUnit, selected.unit).toFixed(4)} {selected.unit}
+                </p>
+              )}
             </div>
             <Button onClick={addEntry} disabled={submitting}>
               Add

@@ -26,7 +26,7 @@ const APPS: LauncherApp[] = [
   {
     name: "Ledgerly",
     href: "/ledgerly",
-    description: "Restaurant revenue and expenditure tracker — daily sales, payments, and P&L.",
+    description: "Restaurant income and expenditure tracker — daily sales, expenses, and P&L.",
   },
   {
     name: "Menuly",

@@ -149,6 +149,12 @@ export default function ItemsPage() {
   async function handleDelivery(value: DeliveryFormValue) {
     if (!deliveryFor) return;
     await api.recordPurchase({ item_id: deliveryFor.id, ...value });
+    // A delivery from a supplier implies that supplier can provide this
+    // item — link them so it shows up under the item's Suppliers list
+    // without a separate manual step.
+    if (value.supplier_id) {
+      await api.addItemSupplier(deliveryFor.id, value.supplier_id);
+    }
     setDeliveryFor(null);
     await load();
   }

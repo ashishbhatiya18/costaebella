@@ -19,7 +19,7 @@ function toCents(value: string) {
 }
 
 export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
-  usePageTitle("Log Revenue");
+  usePageTitle("Log Income");
   const [date, setDate] = useState(today());
 
   const [saleAmount, setSaleAmount] = useState("");
@@ -96,7 +96,7 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl text-navy">Log Revenue</h1>
+          <h1 className="font-display text-2xl text-navy">Log Income</h1>
           <p className="mt-1 text-sm text-navy/60">Log each sale as it happens.</p>
         </div>
         <Input

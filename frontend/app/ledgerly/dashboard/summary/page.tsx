@@ -37,7 +37,7 @@ export default function PnlSummaryPage() {
         <Card className="mt-6 p-10 text-center">
           <p className="font-medium text-navy">You don&apos;t have access to the P&amp;L summary.</p>
           <p className="mt-1 text-sm text-navy/60">
-            This view is restricted to a small set of emails. Log Revenue and Payments are still available to you.
+            This view is restricted to a small set of emails. Log Income and Expense are still available to you.
           </p>
         </Card>
       </div>
@@ -49,7 +49,7 @@ export default function PnlSummaryPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl text-navy">P&amp;L Summary</h1>
-          <p className="mt-1 text-sm text-navy/60">Revenue, expenses, and profit for the period.</p>
+          <p className="mt-1 text-sm text-navy/60">Income, expenses, and profit for the period.</p>
         </div>
         <SegmentedControl
           options={[
@@ -67,7 +67,7 @@ export default function PnlSummaryPage() {
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Card className="p-5">
-              <p className="text-xs uppercase tracking-wide text-navy/50">Revenue</p>
+              <p className="text-xs uppercase tracking-wide text-navy/50">Income</p>
               <p className="mt-2 font-display text-2xl text-navy">{formatINR(summary.revenue_cents)}</p>
               <p className="mt-1 text-xs text-navy/50">
                 {formatINR(summary.revenue_cash_cents)} cash + {formatINR(summary.revenue_card_cents)} card
@@ -80,7 +80,7 @@ export default function PnlSummaryPage() {
               <p className="text-xs uppercase tracking-wide text-navy/50">Expenses</p>
               <p className="mt-2 font-display text-2xl text-navy">{formatINR(summary.expenses_cents)}</p>
               <p className="mt-1 text-xs text-navy/50">
-                {formatINR(summary.payments_cents)} payments + {formatINR(summary.purchases_cents)} Pantrly deliveries
+                {formatINR(summary.payments_cents)} expenses + {formatINR(summary.purchases_cents)} Pantrly deliveries
                 {" + "}
                 {formatINR(summary.advances_cents)} advances
               </p>

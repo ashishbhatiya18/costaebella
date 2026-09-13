@@ -49,8 +49,8 @@ function DownloadIcon({ className }: { className?: string }) {
 }
 
 const NAV_ITEMS = [
-  { href: "/ledgerly/dashboard/log-revenue", label: "Log Revenue", shortLabel: "Revenue", Icon: CoinIcon, gated: false },
-  { href: "/ledgerly/dashboard/payments", label: "Payments", shortLabel: "Payments", Icon: ReceiptIcon, gated: false },
+  { href: "/ledgerly/dashboard/log-revenue", label: "Log Income", shortLabel: "Income", Icon: CoinIcon, gated: false },
+  { href: "/ledgerly/dashboard/payments", label: "Expense", shortLabel: "Expense", Icon: ReceiptIcon, gated: false },
   { href: "/ledgerly/dashboard/summary", label: "P&L Summary", shortLabel: "Summary", Icon: ChartIcon, gated: true },
   { href: "/ledgerly/dashboard/tax-export", label: "Tax Export", shortLabel: "Tax", Icon: DownloadIcon, gated: true },
 ];

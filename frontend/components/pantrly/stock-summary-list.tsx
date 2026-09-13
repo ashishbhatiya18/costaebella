@@ -90,6 +90,7 @@ export function StockSummaryList({
   onAddSupplier,
   onSuppliersHistory,
   onPriceTrend,
+  onMenuImpact,
 }: {
   search: string;
   items: Item[];
@@ -103,6 +104,7 @@ export function StockSummaryList({
   onAddSupplier: (item: Item) => void;
   onSuppliersHistory: (item: Item) => void;
   onPriceTrend: (item: Item) => void;
+  onMenuImpact: (item: Item) => void;
 }) {
   const [range, setRange] = useState<"week" | "month">("week");
   const [summary, setSummary] = useState<StockSummaryResponse | null>(null);
@@ -271,6 +273,7 @@ export function StockSummaryList({
                                 { label: "Wastage", onClick: () => onWastageHistory(fullItem) },
                                 { label: "Suppliers", onClick: () => onSuppliersHistory(fullItem) },
                                 { label: "Add supplier", onClick: () => onAddSupplier(fullItem) },
+                                { label: "Menu impact", onClick: () => onMenuImpact(fullItem) },
                                 { label: "Delete item", onClick: () => onDelete(fullItem.id), variant: "danger" },
                               ]}
                             />

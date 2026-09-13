@@ -19,6 +19,7 @@ import { WastageModal } from "@/components/pantrly/wastage-modal";
 import { AddItemSupplierForm } from "@/components/pantrly/add-item-supplier-form";
 import { ItemSuppliersModal } from "@/components/pantrly/item-suppliers-modal";
 import { PriceTrendModal } from "@/components/pantrly/price-trend-modal";
+import { MenuImpactModal } from "@/components/pantrly/menu-impact-modal";
 import { StockSummaryList } from "@/components/pantrly/stock-summary-list";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 
@@ -70,6 +71,7 @@ export default function ItemsPage() {
   const [addSupplierLinkedIds, setAddSupplierLinkedIds] = useState<string[]>([]);
   const [suppliersHistoryFor, setSuppliersHistoryFor] = useState<Item | null>(null);
   const [priceTrendFor, setPriceTrendFor] = useState<Item | null>(null);
+  const [menuImpactFor, setMenuImpactFor] = useState<Item | null>(null);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
 
@@ -232,6 +234,7 @@ export default function ItemsPage() {
           onAddSupplier={openAddSupplier}
           onSuppliersHistory={setSuppliersHistoryFor}
           onPriceTrend={setPriceTrendFor}
+          onMenuImpact={setMenuImpactFor}
         />
       ) : (
         <>
@@ -297,14 +300,17 @@ export default function ItemsPage() {
                             <Button size="sm" variant="secondary" onClick={() => setLogStockFor(it)}>
                               Count stock
                             </Button>
+                            <Button size="sm" variant="secondary" onClick={() => setMenuImpactFor(it)}>
+                              Menu impact
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => setPriceTrendFor(it)}>
+                              Price trend
+                            </Button>
                             <SplitButton
                               label="Add delivery"
                               onClick={() => setDeliveryFor(it)}
                               options={[{ label: "Deliveries", onClick: () => setDeliveriesFor(it) }]}
                             />
-                            <Button size="sm" variant="secondary" onClick={() => setPriceTrendFor(it)}>
-                              Price trend
-                            </Button>
                             <SplitButton
                               label="Add wastage"
                               onClick={() => setWastageFor(it)}
@@ -416,6 +422,13 @@ export default function ItemsPage() {
         itemName={priceTrendFor?.name ?? ""}
         unit={priceTrendFor?.unit ?? ""}
         onClose={() => setPriceTrendFor(null)}
+      />
+
+      <MenuImpactModal
+        itemId={menuImpactFor?.id ?? null}
+        itemName={menuImpactFor?.name ?? ""}
+        unit={menuImpactFor?.unit ?? ""}
+        onClose={() => setMenuImpactFor(null)}
       />
     </div>
   );

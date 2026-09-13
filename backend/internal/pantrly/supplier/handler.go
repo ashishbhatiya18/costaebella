@@ -96,6 +96,18 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListItems handles GET /api/pantrly/suppliers/{id}/items — the items
+// linked to this supplier, used to compute order recommendations.
+func (h *Handler) ListItems(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	items, err := h.repo.ListItems(r.Context(), id)
+	if err != nil {
+		http.Error(w, "failed to list supplier items", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
 func validateSupplier(s Supplier) error {
 	if strings.TrimSpace(s.Name) == "" {
 		return fmt.Errorf("name is required")

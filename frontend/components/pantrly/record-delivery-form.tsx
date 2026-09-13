@@ -8,7 +8,7 @@ import { Supplier } from "@/lib/pantrly/api";
 export type DeliveryFormValue = {
   supplier_id: string | null;
   quantity: number;
-  cost_cents: number | null;
+  cost_cents: number;
   purchase_date: string;
   notes: string;
 };
@@ -19,10 +19,12 @@ function today() {
 
 export function RecordDeliveryForm({
   suppliers,
+  unit,
   onSubmit,
   onCancel,
 }: {
   suppliers: Supplier[];
+  unit: string;
   onSubmit: (value: DeliveryFormValue) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -41,13 +43,18 @@ export function RecordDeliveryForm({
       setError("Quantity must be greater than 0.");
       return;
     }
+    const costValue = Number(cost);
+    if (!cost || isNaN(costValue) || costValue <= 0) {
+      setError("Cost is required.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       await onSubmit({
         supplier_id: supplierId || null,
         quantity: qty,
-        cost_cents: cost ? Math.round(Number(cost) * 100) : null,
+        cost_cents: Math.round(costValue * 100),
         purchase_date: date,
         notes,
       });
@@ -79,15 +86,21 @@ export function RecordDeliveryForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="delivery-qty">Quantity received</Label>
-          <Input
-            id="delivery-qty"
-            type="number"
-            step="any"
-            min={0}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            required
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              id="delivery-qty"
+              type="number"
+              step="any"
+              min={0}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              required
+              className="flex-1"
+            />
+            <span className="whitespace-nowrap rounded-lg bg-navy/5 px-2.5 py-2 text-sm text-navy/50">
+              {unit}
+            </span>
+          </div>
         </div>
         <div>
           <Label htmlFor="delivery-date">Date</Label>
@@ -101,7 +114,7 @@ export function RecordDeliveryForm({
         </div>
       </div>
       <div>
-        <Label htmlFor="delivery-cost">Cost (₹, optional)</Label>
+        <Label htmlFor="delivery-cost">Cost (₹)</Label>
         <Input
           id="delivery-cost"
           type="number"
@@ -109,11 +122,8 @@ export function RecordDeliveryForm({
           min={0}
           value={cost}
           onChange={(e) => setCost(e.target.value)}
-          placeholder="Leave blank if unknown"
+          required
         />
-        <p className="mt-1 text-xs text-navy/40">
-          Only costed deliveries show up in Ledgerly&apos;s expense summary.
-        </p>
       </div>
       <div>
         <Label htmlFor="delivery-notes">Notes</Label>

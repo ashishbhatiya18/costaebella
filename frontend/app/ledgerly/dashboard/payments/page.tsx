@@ -7,6 +7,8 @@ import { api as pantrlyApi, Supplier } from "@/lib/pantrly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Card } from "@/components/admin/ui/card";
 import { Modal } from "@/components/admin/ui/modal";
+import { IconButton } from "@/components/admin/ui/icon-button";
+import { TrashIcon } from "@/components/admin/ui/icons";
 import { PaymentForm, PaymentFormValue } from "@/components/ledgerly/payment-form";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
@@ -130,9 +132,9 @@ export default function PaymentsPage() {
                       <Button size="sm" variant="secondary" onClick={() => openEdit(p)}>
                         Edit
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => handleDelete(p.id)}>
-                        Delete
-                      </Button>
+                      <IconButton variant="danger" onClick={() => handleDelete(p.id)} aria-label="Delete payment">
+                        <TrashIcon />
+                      </IconButton>
                     </div>
                   </td>
                 </tr>

@@ -21,6 +21,7 @@ import (
 	"attendance-app/costaebella-backend/internal/pantrly/item"
 	"attendance-app/costaebella-backend/internal/pantrly/stock"
 	"attendance-app/costaebella-backend/internal/pantrly/supplier"
+	"attendance-app/costaebella-backend/internal/pantrly/wastage"
 	"attendance-app/costaebella-backend/internal/shiftly/advance"
 	"attendance-app/costaebella-backend/internal/shiftly/attendance"
 	"attendance-app/costaebella-backend/internal/shiftly/employee"
@@ -61,6 +62,7 @@ func main() {
 	itemRepo := item.NewRepo(pool)
 	supplierRepo := supplier.NewRepo(pool)
 	stockRepo := stock.NewRepo(pool)
+	wastageRepo := wastage.NewRepo(pool)
 	revenueRepo := revenue.NewRepo(pool)
 	paymentRepo := payment.NewRepo(pool)
 	visibilityRepo := visibility.NewRepo(pool)
@@ -74,6 +76,7 @@ func main() {
 	itemHandler := item.NewHandler(itemRepo)
 	supplierHandler := supplier.NewHandler(supplierRepo)
 	stockHandler := stock.NewHandler(stockRepo)
+	wastageHandler := wastage.NewHandler(wastageRepo)
 	revenueHandler := revenue.NewHandler(revenueRepo)
 	paymentHandler := payment.NewHandler(paymentRepo)
 	pnlHandler := pnl.NewHandler(revenueRepo, paymentRepo, stockRepo, advanceRepo)
@@ -129,6 +132,9 @@ func main() {
 			ir.Get("/{id}", itemHandler.Get)
 			ir.Put("/{id}", itemHandler.Update)
 			ir.Delete("/{id}", itemHandler.Delete)
+			ir.Post("/{id}/suppliers", itemHandler.AddSupplier)
+			ir.Get("/{id}/suppliers", itemHandler.ListItemSuppliers)
+			ir.Delete("/{id}/suppliers/{supplier_id}", itemHandler.RemoveSupplier)
 		})
 
 		pr.Route("/api/pantrly/suppliers", func(sr chi.Router) {
@@ -137,13 +143,19 @@ func main() {
 			sr.Get("/{id}", supplierHandler.Get)
 			sr.Put("/{id}", supplierHandler.Update)
 			sr.Delete("/{id}", supplierHandler.Delete)
+			sr.Get("/{id}/items", supplierHandler.ListItems)
 		})
 
 		pr.Post("/api/pantrly/stock/log", stockHandler.Log)
 		pr.Get("/api/pantrly/stock", stockHandler.ListLogs)
 		pr.Post("/api/pantrly/purchases", stockHandler.RecordPurchase)
 		pr.Get("/api/pantrly/purchases", stockHandler.ListPurchases)
+		pr.Delete("/api/pantrly/purchases/{id}", stockHandler.DeletePurchase)
 		pr.Get("/api/pantrly/summary/stock", stockHandler.Summary)
+
+		pr.Post("/api/pantrly/wastage", wastageHandler.Log)
+		pr.Get("/api/pantrly/wastage", wastageHandler.List)
+		pr.Delete("/api/pantrly/wastage/{id}", wastageHandler.Delete)
 
 		// Ledgerly data entry — same access as every other admin route.
 		pr.Route("/api/ledgerly/payments", func(lr chi.Router) {

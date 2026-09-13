@@ -59,7 +59,6 @@ export function ItemDetailModal({
 
   useEffect(() => {
     if (!itemId) return;
-    let cancelled = false;
     setLoading(true);
     const from = daysAgo(90);
     const to = daysAgo(0);
@@ -68,16 +67,10 @@ export function ItemDetailModal({
       api.listPurchases({ item_id: itemId, from, to }),
     ])
       .then(([logsData, purchasesData]) => {
-        if (cancelled) return;
         setLogs(logsData ?? []);
         setPurchases(purchasesData ?? []);
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => setLoading(false));
   }, [itemId]);
 
   const countedLogs = logs

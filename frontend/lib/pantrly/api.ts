@@ -63,6 +63,30 @@ export type StockSummaryResponse = {
   items: ItemStock[];
 };
 
+export type ItemSupplier = {
+  supplier_id: string;
+  name: string;
+  phone: string;
+};
+
+export type SupplierItem = {
+  item_id: string;
+  name: string;
+  unit: string;
+  par_level: number;
+};
+
+export type WastageLog = {
+  id: string;
+  item_id: string;
+  quantity: number;
+  reason: string;
+  wastage_date: string;
+  logged_by: string;
+  item_name: string;
+  unit: string;
+};
+
 export const api = {
   listItems: () => request<Item[]>("/api/pantrly/items/"),
   createItem: (i: Partial<Item>) =>
@@ -92,6 +116,21 @@ export const api = {
   deleteSupplier: (id: string) =>
     request<void>(`/api/pantrly/suppliers/${id}`, { method: "DELETE" }),
 
+  addItemSupplier: (itemId: string, supplierId: string) =>
+    request<void>(`/api/pantrly/items/${itemId}/suppliers`, {
+      method: "POST",
+      body: JSON.stringify({ supplier_id: supplierId }),
+    }),
+
+  listItemSuppliers: (itemId: string) =>
+    request<ItemSupplier[]>(`/api/pantrly/items/${itemId}/suppliers`),
+
+  removeItemSupplier: (itemId: string, supplierId: string) =>
+    request<void>(`/api/pantrly/items/${itemId}/suppliers/${supplierId}`, { method: "DELETE" }),
+
+  listSupplierItems: (supplierId: string) =>
+    request<SupplierItem[]>(`/api/pantrly/suppliers/${supplierId}/items`),
+
   logStock: (body: {
     item_id: string;
     date?: string;
@@ -115,7 +154,7 @@ export const api = {
     item_id: string;
     supplier_id?: string | null;
     quantity: number;
-    cost_cents?: number | null;
+    cost_cents: number;
     purchase_date?: string;
     notes?: string;
   }) =>
@@ -124,13 +163,17 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  listPurchases: (params: { item_id?: string; from: string; to: string }) => {
+  listPurchases: (params: { item_id?: string; supplier_id?: string; from: string; to: string }) => {
     const q = new URLSearchParams();
     if (params.item_id) q.set("item_id", params.item_id);
+    if (params.supplier_id) q.set("supplier_id", params.supplier_id);
     q.set("from", params.from);
     q.set("to", params.to);
     return request<Purchase[]>(`/api/pantrly/purchases?${q.toString()}`);
   },
+
+  deletePurchase: (id: string) =>
+    request<void>(`/api/pantrly/purchases/${id}`, { method: "DELETE" }),
 
   stockSummary: (range: "week" | "month", anchorDate: string) =>
     request<StockSummaryResponse>(
@@ -142,4 +185,21 @@ export const api = {
   // picked there.
   stockSummaryRange: (from: string, to: string) =>
     request<StockSummaryResponse>(`/api/pantrly/summary/stock?from=${from}&to=${to}`),
+
+  logWastage: (body: { item_id: string; quantity: number; reason: string; wastage_date?: string }) =>
+    request<WastageLog>("/api/pantrly/wastage", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  listWastage: (params: { item_id?: string; from: string; to: string }) => {
+    const q = new URLSearchParams();
+    if (params.item_id) q.set("item_id", params.item_id);
+    q.set("from", params.from);
+    q.set("to", params.to);
+    return request<WastageLog[]>(`/api/pantrly/wastage?${q.toString()}`);
+  },
+
+  deleteWastage: (id: string) =>
+    request<void>(`/api/pantrly/wastage/${id}`, { method: "DELETE" }),
 };

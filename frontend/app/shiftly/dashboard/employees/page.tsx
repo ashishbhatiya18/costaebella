@@ -5,6 +5,8 @@ import { api, Employee } from "@/lib/shiftly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Card } from "@/components/admin/ui/card";
 import { Modal } from "@/components/admin/ui/modal";
+import { IconButton } from "@/components/admin/ui/icon-button";
+import { TrashIcon } from "@/components/admin/ui/icons";
 import { EmployeeForm, EmployeeFormValue } from "@/components/shiftly/employee-form";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 
@@ -130,9 +132,9 @@ export default function EmployeesPage() {
                 <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
                   Edit
                 </Button>
-                <Button size="sm" variant="danger" onClick={() => handleDelete(e.id)}>
-                  Delete
-                </Button>
+                <IconButton variant="danger" onClick={() => handleDelete(e.id)} aria-label="Delete employee">
+                  <TrashIcon />
+                </IconButton>
               </div>
             </Card>
           ))}

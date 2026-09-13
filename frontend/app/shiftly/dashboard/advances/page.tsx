@@ -5,6 +5,8 @@ import { api, Advance, Employee } from "@/lib/shiftly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Card } from "@/components/admin/ui/card";
 import { Modal } from "@/components/admin/ui/modal";
+import { IconButton } from "@/components/admin/ui/icon-button";
+import { TrashIcon } from "@/components/admin/ui/icons";
 import { AdvanceForm, AdvanceFormValue } from "@/components/shiftly/advance-form";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
@@ -123,9 +125,9 @@ export default function AdvancesPage() {
                           <Button size="sm" variant="secondary" onClick={() => openEdit(a)}>
                             Edit
                           </Button>
-                          <Button size="sm" variant="danger" onClick={() => handleDelete(a.id)}>
-                            Delete
-                          </Button>
+                          <IconButton variant="danger" onClick={() => handleDelete(a.id)} aria-label="Delete advance">
+                            <TrashIcon />
+                          </IconButton>
                         </div>
                       </td>
                     </tr>

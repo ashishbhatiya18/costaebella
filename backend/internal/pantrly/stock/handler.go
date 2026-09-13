@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"attendance-app/costaebella-backend/internal/middleware"
+	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
@@ -84,8 +85,8 @@ func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "quantity must be positive", http.StatusBadRequest)
 		return
 	}
-	if req.CostCents != nil && *req.CostCents < 0 {
-		http.Error(w, "cost_cents must not be negative", http.StatusBadRequest)
+	if req.CostCents == nil || *req.CostCents <= 0 {
+		http.Error(w, "cost_cents is required and must be positive", http.StatusBadRequest)
 		return
 	}
 	if req.PurchaseDate == "" {
@@ -100,7 +101,7 @@ func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, p)
 }
 
-// ListPurchases handles GET /api/pantrly/purchases?item_id=&from=&to=
+// ListPurchases handles GET /api/pantrly/purchases?item_id=&supplier_id=&from=&to=
 func (h *Handler) ListPurchases(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	from, to := q.Get("from"), q.Get("to")
@@ -108,12 +109,29 @@ func (h *Handler) ListPurchases(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "from and to query params are required (YYYY-MM-DD)", http.StatusBadRequest)
 		return
 	}
-	purchases, err := h.repo.ListPurchases(r.Context(), q.Get("item_id"), from, to)
+	purchases, err := h.repo.ListPurchases(r.Context(), q.Get("item_id"), q.Get("supplier_id"), from, to)
 	if err != nil {
 		http.Error(w, "failed to list purchases", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, purchases)
+}
+
+// DeletePurchase handles DELETE /api/pantrly/purchases/{id} — removes a
+// recorded delivery so a mis-logged quantity/cost doesn't linger in stock
+// and expense calculations.
+func (h *Handler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	ok, err := h.repo.DeletePurchase(r.Context(), id)
+	if err != nil {
+		http.Error(w, "failed to delete purchase", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "purchase not found", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Summary handles GET /api/pantrly/summary/stock?range=week|month&anchor_date=YYYY-MM-DD

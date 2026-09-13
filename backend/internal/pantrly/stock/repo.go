@@ -75,12 +75,14 @@ func (r *Repo) InsertPurchase(ctx context.Context, p PurchaseRequest) (*Purchase
 	return &out, nil
 }
 
-func (r *Repo) ListPurchases(ctx context.Context, itemID, from, to string) ([]Purchase, error) {
+func (r *Repo) ListPurchases(ctx context.Context, itemID, supplierID, from, to string) ([]Purchase, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, item_id, supplier_id, quantity, cost_cents, purchase_date::text, notes, created_at
 		FROM pantrly_purchases
-		WHERE purchase_date BETWEEN $1 AND $2 AND ($3 = '' OR item_id::text = $3)
-		ORDER BY purchase_date DESC, created_at DESC`, from, to, itemID)
+		WHERE purchase_date BETWEEN $1 AND $2
+		  AND ($3 = '' OR item_id::text = $3)
+		  AND ($4 = '' OR supplier_id::text = $4)
+		ORDER BY purchase_date DESC, created_at DESC`, from, to, itemID, supplierID)
 	if err != nil {
 		return nil, fmt.Errorf("query purchases: %w", err)
 	}
@@ -95,6 +97,16 @@ func (r *Repo) ListPurchases(ctx context.Context, itemID, from, to string) ([]Pu
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// DeletePurchase removes a recorded delivery. Returns pgx.ErrNoRows-style
+// zero-affected-rows detection via the returned bool so callers can 404.
+func (r *Repo) DeletePurchase(ctx context.Context, id string) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM pantrly_purchases WHERE id = $1`, id)
+	if err != nil {
+		return false, fmt.Errorf("delete purchase: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 // ListPurchasesWithCost returns costed purchases (cost_cents IS NOT NULL)

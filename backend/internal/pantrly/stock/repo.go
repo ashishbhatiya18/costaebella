@@ -61,6 +61,16 @@ func (r *Repo) ListLogs(ctx context.Context, itemID, from, to string) ([]StockLo
 	return out, rows.Err()
 }
 
+// DeleteLog removes a recorded opening/closing count. Returns false if no
+// row matched so callers can 404.
+func (r *Repo) DeleteLog(ctx context.Context, id string) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM pantrly_stock_logs WHERE id = $1`, id)
+	if err != nil {
+		return false, fmt.Errorf("delete stock log: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 func (r *Repo) InsertPurchase(ctx context.Context, p PurchaseRequest) (*Purchase, error) {
 	var out Purchase
 	err := r.pool.QueryRow(ctx, `

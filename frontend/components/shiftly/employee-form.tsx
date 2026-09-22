@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Employee, ShiftInterval } from "@/lib/shiftly/api";
+import { Employee } from "@/lib/shiftly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
 
@@ -33,44 +33,22 @@ export function EmployeeForm({
   const [monthlyPay, setMonthlyPay] = useState(
     initial ? String(initial.monthly_pay_cents / 100) : "",
   );
-  const [committedDays, setCommittedDays] = useState<number[]>(
-    initial?.committed_working_days ?? [1, 2, 3, 4, 5],
+  const [weeklyOffDays, setWeeklyOffDays] = useState<number[]>(
+    initial?.weekly_off_days ?? [0],
   );
-  const [permittedLeaves, setPermittedLeaves] = useState(
-    String(initial?.permitted_leaves_per_month ?? 2),
+  const [eligibleHoursPerDay, setEligibleHoursPerDay] = useState(
+    String(initial?.eligible_hours_per_day ?? 9),
   );
   const [startDate, setStartDate] = useState(
     initial?.start_date ?? new Date().toISOString().slice(0, 10),
   );
-  const [intervals, setIntervals] = useState<ShiftInterval[]>(
-    initial?.shift_intervals?.length
-      ? initial.shift_intervals
-      : [{ day_of_week: null, start_time: "09:00", end_time: "17:00" }],
-  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  function toggleDay(day: number) {
-    setCommittedDays((prev) =>
+  function toggleOffDay(day: number) {
+    setWeeklyOffDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort(),
     );
-  }
-
-  function updateInterval(idx: number, patch: Partial<ShiftInterval>) {
-    setIntervals((prev) =>
-      prev.map((iv, i) => (i === idx ? { ...iv, ...patch } : iv)),
-    );
-  }
-
-  function addInterval() {
-    setIntervals((prev) => [
-      ...prev,
-      { day_of_week: null, start_time: "09:00", end_time: "17:00" },
-    ]);
-  }
-
-  function removeInterval(idx: number) {
-    setIntervals((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -86,6 +64,11 @@ export function EmployeeForm({
       setError("Monthly pay must be a valid amount.");
       return;
     }
+    const hoursPerDay = parseFloat(eligibleHoursPerDay || "0");
+    if (Number.isNaN(hoursPerDay) || hoursPerDay <= 0 || hoursPerDay > 24) {
+      setError("Eligible hours per day must be greater than 0 and at most 24.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -93,10 +76,9 @@ export function EmployeeForm({
         name: name.trim(),
         shift_name: shiftName.trim(),
         monthly_pay_cents: payCents,
-        committed_working_days: committedDays,
-        permitted_leaves_per_month: parseInt(permittedLeaves || "0", 10),
+        weekly_off_days: weeklyOffDays,
+        eligible_hours_per_day: hoursPerDay,
         start_date: startDate,
-        shift_intervals: intervals,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save employee.");
@@ -154,21 +136,22 @@ export function EmployeeForm({
         />
         <p className="mt-1.5 text-xs text-navy/50">
           Attendance is only tracked from this date. If it falls mid-month,
-          salary and permitted leaves are prorated automatically.
+          pay for that month is naturally lower since it&apos;s based on
+          hours worked from this date onward.
         </p>
       </div>
 
       <div>
-        <Label>Committed working days</Label>
+        <Label>Weekly off day(s)</Label>
         <div className="flex flex-wrap gap-2">
           {DAYS.map((d) => (
             <button
               key={d.value}
               type="button"
-              onClick={() => toggleDay(d.value)}
+              onClick={() => toggleOffDay(d.value)}
               className={
                 "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors " +
-                (committedDays.includes(d.value)
+                (weeklyOffDays.includes(d.value)
                   ? "bg-teal text-white"
                   : "bg-navy/5 text-navy/50 hover:bg-navy/10")
               }
@@ -180,81 +163,24 @@ export function EmployeeForm({
       </div>
 
       <div>
-        <Label htmlFor="permitted_leaves">Permitted leaves / month</Label>
+        <Label htmlFor="eligible_hours_per_day">Eligible hours per day</Label>
         <Input
-          id="permitted_leaves"
+          id="eligible_hours_per_day"
           type="number"
           min="0"
-          value={permittedLeaves}
-          onChange={(e) => setPermittedLeaves(e.target.value)}
+          max="24"
+          step="0.5"
+          value={eligibleHoursPerDay}
+          onChange={(e) => setEligibleHoursPerDay(e.target.value)}
           className="max-w-[160px]"
         />
       </div>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <Label className="mb-0">Working hour intervals</Label>
-          <button
-            type="button"
-            onClick={addInterval}
-            className="text-xs font-medium text-teal hover:text-teal/80"
-          >
-            + Add interval
-          </button>
-        </div>
-        <div className="space-y-2">
-          {intervals.map((iv, idx) => (
-            <div
-              key={idx}
-              className="flex flex-wrap items-center gap-2 rounded-xl border border-navy/10 bg-cream/30 p-2.5"
-            >
-              <select
-                value={iv.day_of_week ?? "all"}
-                onChange={(e) =>
-                  updateInterval(idx, {
-                    day_of_week:
-                      e.target.value === "all" ? null : parseInt(e.target.value, 10),
-                  })
-                }
-                className="rounded-lg border border-navy/15 bg-white px-2 py-1.5 text-sm text-navy"
-              >
-                <option value="all">Every day</option>
-                {DAYS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="time"
-                value={iv.start_time}
-                onChange={(e) => updateInterval(idx, { start_time: e.target.value })}
-                className="rounded-lg border border-navy/15 bg-white px-2 py-1.5 text-sm text-navy"
-              />
-              <span className="text-navy/50">to</span>
-              <input
-                type="time"
-                value={iv.end_time}
-                onChange={(e) => updateInterval(idx, { end_time: e.target.value })}
-                className="rounded-lg border border-navy/15 bg-white px-2 py-1.5 text-sm text-navy"
-              />
-              {intervals.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeInterval(idx)}
-                  className="ml-auto text-navy/40 hover:text-coral"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        <p className="mt-1.5 text-xs text-navy/50">
-          Add multiple intervals for split shifts. Intervals must not overlap,
-          and total hours for any single day cannot exceed 15h.
-        </p>
-      </div>
+      <p className="-mt-3 text-xs text-navy/50">
+        Used to compute the flat hourly rate: monthly pay ÷ (working days in
+        the month × eligible hours per day). Working days = days in the month
+        minus the actual number of selected weekly-off day(s) that occur that
+        month.
+      </p>
 
       {error && (
         <p className="rounded-lg bg-coral/10 px-3 py-2 text-sm text-coral">

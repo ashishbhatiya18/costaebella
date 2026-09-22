@@ -3,14 +3,15 @@ package attendance
 import "time"
 
 type Log struct {
-	ID         string     `json:"id"`
-	EmployeeID string     `json:"employee_id"`
-	LogDate    string     `json:"log_date"` // YYYY-MM-DD
-	LoginTime  *time.Time `json:"login_time"`
-	LogoutTime *time.Time `json:"logout_time"`
-	AutoLogout bool       `json:"auto_logout"`
-	IsLeave    bool       `json:"is_leave"`
-	IsCompOff  bool       `json:"is_comp_off"`
+	ID          string     `json:"id"`
+	EmployeeID  string     `json:"employee_id"`
+	LogDate     string     `json:"log_date"` // YYYY-MM-DD
+	LoginTime   *time.Time `json:"login_time"`
+	LogoutTime  *time.Time `json:"logout_time"`
+	AutoLogout  bool       `json:"auto_logout"`
+	IsLeave     bool       `json:"is_leave"`
+	IsCompOff   bool       `json:"is_comp_off"`
+	IsWeeklyOff bool       `json:"is_weekly_off"` // admin-marked one-off weekly off, distinct from the employee's recurring weekly_off_days schedule
 }
 
 type LogRequest struct {
@@ -31,11 +32,12 @@ type SessionInput struct {
 // forgotten split-shift session, or mark the day as an approved leave (which
 // discards any sessions supplied).
 type OverrideRequest struct {
-	EmployeeID string         `json:"employee_id"`
-	Date       string         `json:"date"` // YYYY-MM-DD
-	IsLeave    bool           `json:"is_leave"`
-	IsCompOff  bool           `json:"is_comp_off"` // worked a weekly off day and is banking it instead of taking the hourly bonus
-	Sessions   []SessionInput `json:"sessions"`
+	EmployeeID  string         `json:"employee_id"`
+	Date        string         `json:"date"` // YYYY-MM-DD
+	IsLeave     bool           `json:"is_leave"`
+	IsCompOff   bool           `json:"is_comp_off"`   // worked a weekly off day and is banking it instead of taking the hourly bonus
+	IsWeeklyOff bool           `json:"is_weekly_off"` // mark this specific date as a weekly off (display only — does not affect payout computation)
+	Sessions    []SessionInput `json:"sessions"`
 }
 
 // ActivityItem is a single login or logout event in the recent activity feed.

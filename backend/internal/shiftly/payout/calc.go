@@ -8,32 +8,14 @@ import (
 	"attendance-app/costaebella-backend/internal/shiftly/employee"
 )
 
-// Day categories. "leave" may be downgraded to "unpaid_leave" by
-// ComputePayout once the monthly permitted-leave allowance is exhausted.
+// Day categories, used both for the attendance-summary UI and to flag
+// "irregular" employee-days in LaborCostSummary.
 const (
-	CategoryBeforeStart     = "before_start"
-	CategoryWeeklyOff       = "weekly_off"
-	CategoryWeeklyOffWorked = "weekly_off_worked"
-	CategoryLeave           = "leave"
-	CategoryUnpaidLeave     = "unpaid_leave"
-	CategoryAbsent          = "absent"
-	CategoryHalfDay         = "half_day"
-	CategoryFullDay         = "full_day"
-	CategoryFullDayOT       = "full_day_ot"
-)
-
-// Absolute-hour classification bands for a committed working day:
-//
-//	0h            -> absent (no leave allowance consumed)
-//	(0h, 5h)      -> leave (auto; consumes the monthly leave allowance)
-//	[5h, 7h)      -> half day
-//	[7h, 16h]     -> full day
-//	>16h          -> full day + overtime bonus for hours beyond 16h
-const (
-	leaveHoursThreshold = 5.0  // <5h worked (but >0) -> auto leave
-	halfDayHoursCeiling = 7.0  // [5,7) -> half day
-	otHoursThreshold    = 16.0 // >16h -> overtime; [.., 16] -> full day (matches the 15h max configured shift + buffer)
-	fallbackStdHours    = 8.0  // used only if an employee has no committed days configured
+	CategoryBeforeStart = "before_start"
+	CategoryPresent     = "present"
+	CategoryLeave       = "leave"
+	CategoryAbsent      = "absent"
+	CategoryWeeklyOff   = "weekly_off"
 )
 
 // EmployeeAvailability summarizes one employee's attendance over a date range.
@@ -48,64 +30,113 @@ type EmployeeAvailability struct {
 	Days          []DayAvailability `json:"days"`
 }
 
-// DayAvailability describes a single day's classification. Category is the
-// primary signal for display; the booleans/numbers below give supporting
-// detail (e.g. for tooltips).
+// DayAvailability describes a single day's classification, under the
+// simplified hourly model: a day is either before the employee's start date,
+// on leave (admin/self marked), present (at least one closed session), or
+// absent (no session, not marked leave).
 type DayAvailability struct {
-	Date               string  `json:"date"`
-	BeforeStart        bool    `json:"before_start"`
-	IsWeeklyOff        bool    `json:"is_weekly_off"`
-	WithinAvailability bool    `json:"within_availability"` // true = committed working day
-	Present            bool    `json:"present"`             // at least one session logged (not leave)
-	Leave              bool    `json:"leave"`
-	CompOff            bool    `json:"comp_off"` // worked a weekly off, banking it instead of taking the hourly bonus
-	AutoLogout         bool    `json:"auto_logout"`
-	HoursWorked        float64 `json:"hours_worked"`   // sum of closed sessions that day
-	ExpectedHours      float64 `json:"expected_hours"` // this day's configured shift hours (0 for weekly-off/before-start); always <=9, enforced at employee setup
-	HoursPct           float64 `json:"hours_pct"`      // informational only; classification uses absolute hour bands, not this pct
-	Category           string  `json:"category"`
-	DayCredit          float64 `json:"day_credit"`  // 0 / 0.5 / 1.0
-	BonusHours         float64 `json:"bonus_hours"` // hours eligible for the hourly bonus (OT or weekly-off-worked)
+	Date          string  `json:"date"`
+	BeforeStart   bool    `json:"before_start"`
+	IsWeeklyOff   bool    `json:"is_weekly_off"`
+	Present       bool    `json:"present"`
+	Leave         bool    `json:"leave"`
+	AutoLogout    bool    `json:"auto_logout"`
+	HoursWorked   float64 `json:"hours_worked"`   // raw sum of closed sessions that day
+	RoundedHours  float64 `json:"rounded_hours"`  // hours_worked rounded to the nearest hour
+	ExpectedHours float64 `json:"expected_hours"` // employee's configured eligible_hours_per_day
+	Category      string  `json:"category"`
 }
 
-// EmployeePayout summarizes one employee's computed monthly payout. When the
-// employee joined partway through the month, MonthlyPayCents/PermittedLeaves
-// are already prorated to the fraction of the month from their start date.
-type EmployeePayout struct {
-	EmployeeID          string  `json:"employee_id"`
-	EmployeeName        string  `json:"employee_name"`
-	MonthlyPayCents     int64   `json:"monthly_pay_cents"`
-	FullMonthlyPayCents int64   `json:"full_monthly_pay_cents"`
-	TotalDays           int     `json:"total_days"` // countable calendar days in the (prorated) period
-	FullDayCount        int     `json:"full_day_count"`
-	HalfDayCount        int     `json:"half_day_count"`
-	AbsentCount         int     `json:"absent_count"`
-	WeeklyOffCount      int     `json:"weekly_off_count"`
-	LeavesTaken         int     `json:"leaves_taken"`
-	PermittedLeaves     int     `json:"permitted_leaves"`
-	UnpaidLeaveDays     int     `json:"unpaid_leave_days"`
-	BonusHours          float64 `json:"bonus_hours"`
-	BasePayCents        int64   `json:"base_pay_cents"`
-	BonusPayCents       int64   `json:"bonus_pay_cents"`
-	PayoutCents         int64   `json:"payout_cents"`
-	AdvanceCents        int64   `json:"advance_cents"`
-	NetPayoutCents      int64   `json:"net_payout_cents"`
-	ProratedFraction    float64 `json:"prorated_fraction"`
+// SessionTimes is one login/logout pair on a given day, as RFC3339
+// timestamps — callers format these for display (e.g. in the payout PDF
+// report), consistent with how the rest of the app renders attendance
+// times client-side.
+type SessionTimes struct {
+	Login  string  `json:"login"`
+	Logout *string `json:"logout"` // nil if the session is still open
+}
 
-	// DailyCosts is this employee's gross labor cost broken out by day for
-	// the computed month — the per-day dayCredit/bonus used here already
-	// reflects the permitted-leave-allowance downgrade applied below, so
-	// callers needing a sub-month cost figure (e.g. Intel-ly's staffing-vs-
-	// revenue correlation) should slice this rather than re-deriving it
-	// from EmployeeAvailability directly (which doesn't have the cap applied).
-	DailyCosts []DailyLaborCost `json:"-"`
+// DailyPayoutLine is one employee's computed pay for a single day within a
+// ComputeHourlyPayout run.
+type DailyPayoutLine struct {
+	Date         string         `json:"date"`
+	Category     string         `json:"category"`
+	Sessions     []SessionTimes `json:"sessions"`
+	RawHours     float64        `json:"raw_hours"`
+	RoundedHours float64        `json:"rounded_hours"`
+	DayPayCents  int64          `json:"day_pay_cents"`
+}
+
+// sessionTimesFor lists a day's sessions as login/logout RFC3339 pairs.
+func sessionTimesFor(dayLogs []attendance.Log) []SessionTimes {
+	out := make([]SessionTimes, 0, len(dayLogs))
+	for _, l := range dayLogs {
+		if l.LoginTime == nil {
+			continue
+		}
+		st := SessionTimes{Login: l.LoginTime.Format(time.RFC3339)}
+		if l.LogoutTime != nil {
+			logout := l.LogoutTime.Format(time.RFC3339)
+			st.Logout = &logout
+		}
+		out = append(out, st)
+	}
+	return out
+}
+
+// EmployeePayout summarizes one employee's computed monthly payout under the
+// flat-hourly-rate model:
+//
+//	weekly_off_count      = number of days in the period whose weekday is one
+//	                        of the employee's weekly_off_days (an exact count
+//	                        of actual occurrences that month, not an average)
+//	working_days_in_month = total_days_in_month - weekly_off_count
+//	hourly_rate           = monthly_pay / (working_days_in_month * eligible_hours_per_day)
+//	day_pay               = round_to_nearest_hour(hours_worked_that_day) * hourly_rate
+//
+// When the employee joined partway through the month, the day range (and so
+// TotalDays/WorkingDaysInMonth) is already restricted to start from their
+// start date — MonthlyPayCents itself is never scaled down, since paying by
+// the hour over fewer working days already accounts for the shorter month.
+type EmployeePayout struct {
+	EmployeeID          string            `json:"employee_id"`
+	EmployeeName        string            `json:"employee_name"`
+	MonthlyPayCents     int64             `json:"monthly_pay_cents"`
+	TotalDays           int               `json:"total_days"` // countable calendar days in the period
+	WeeklyOffDays       []int             `json:"weekly_off_days"`
+	WeeklyOffCount      int               `json:"weekly_off_count"` // actual occurrences of those weekdays in the period
+	EligibleHoursPerDay float64           `json:"eligible_hours_per_day"`
+	WorkingDaysInMonth  int               `json:"working_days_in_month"`
+	HourlyRateCents     float64           `json:"hourly_rate_cents"`
+	TotalHoursWorked    float64           `json:"total_hours_worked"`
+	GrossPayCents       int64             `json:"gross_pay_cents"`
+	AdvanceCents        int64             `json:"advance_cents"`
+	NetPayoutCents      int64             `json:"net_payout_cents"`
+	DailyBreakdown      []DailyPayoutLine `json:"daily_breakdown"`
+}
+
+// countWeeklyOffDays counts how many days in [from, to] (inclusive) fall on
+// one of offDays (0=Sun..6=Sat) — an exact count of real occurrences for
+// that specific period, not an average/approximation.
+func countWeeklyOffDays(offDays []int, from, to time.Time) int {
+	if len(offDays) == 0 {
+		return 0
+	}
+	set := make(map[int]bool, len(offDays))
+	for _, d := range offDays {
+		set[d] = true
+	}
+	count := 0
+	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+		if set[int(d.Weekday())] {
+			count++
+		}
+	}
+	return count
 }
 
 // DailyLaborCost is one employee's computed gross labor cost for a single
-// day within a ComputePayout run. Category is the post-permitted-leave-cap
-// category (so a leave day already downgraded to unpaid_leave shows as
-// such here) — callers use it to flag days where staffing deviated from a
-// normal full day (half_day, absent, leave, unpaid_leave).
+// day — used by LaborCostSummary to aggregate across employees.
 type DailyLaborCost struct {
 	Date      string `json:"date"`
 	Category  string `json:"category"`
@@ -122,62 +153,6 @@ func parseDate(s string) (t time.Time, ok bool) {
 		return time.Time{}, false
 	}
 	return parsed, true
-}
-
-// isCommittedDay reports whether weekday (0=Sun..6=Sat) is one of the
-// employee's committed working days.
-func isCommittedDay(committed []int, weekday int) bool {
-	for _, d := range committed {
-		if d == weekday {
-			return true
-		}
-	}
-	return false
-}
-
-// expectedHoursForDay sums the duration of all shift intervals applicable to
-// the given weekday (day-specific intervals plus "every day" ones).
-func expectedHoursForDay(e employee.Employee, weekday int) float64 {
-	var total float64
-	for _, si := range e.ShiftIntervals {
-		if si.DayOfWeek == nil || *si.DayOfWeek == weekday {
-			total += parseHours(si.StartTime, si.EndTime)
-		}
-	}
-	return total
-}
-
-// standardDailyHours is the employee's average expected hours across their
-// committed weekdays — used as the base for their single "hourly rate"
-// (overtime and weekly-off-worked bonuses).
-func standardDailyHours(e employee.Employee) float64 {
-	if len(e.CommittedWorkingDays) == 0 {
-		return fallbackStdHours
-	}
-	var total float64
-	for _, wd := range e.CommittedWorkingDays {
-		total += expectedHoursForDay(e, wd)
-	}
-	avg := total / float64(len(e.CommittedWorkingDays))
-	if avg <= 0 {
-		return fallbackStdHours
-	}
-	return avg
-}
-
-// parseHours returns the duration of a shift interval. If end is at or
-// before start (e.g. 16:00-00:00 or 23:00-05:00), the shift is treated as
-// running past midnight into the next day.
-func parseHours(start, end string) float64 {
-	st, err1 := time.Parse("15:04", start)
-	et, err2 := time.Parse("15:04", end)
-	if err1 != nil || err2 != nil {
-		return 0
-	}
-	if !et.After(st) {
-		et = et.Add(24 * time.Hour)
-	}
-	return et.Sub(st).Hours()
 }
 
 // groupByDate buckets one employee's log rows (sessions and/or a leave
@@ -208,114 +183,90 @@ func sessionHours(dayLogs []attendance.Log) float64 {
 	return total
 }
 
+// roundHoursToNearestHour rounds a day's worked hours to the nearest whole
+// hour, rounding .5 and above up (e.g. 9h31m -> 10h, 9h29m -> 9h).
+func roundHoursToNearestHour(hours float64) float64 {
+	if hours <= 0 {
+		return 0
+	}
+	return math.Floor(hours + 0.5)
+}
+
+// dayFlags is a small helper shared by ComputeAvailability and
+// ComputeHourlyPayout. isWeeklyOffOverride reflects an admin's one-off
+// "mark this day as weekly off" override (attendance_logs.is_weekly_off),
+// distinct from the employee's recurring weekly_off_days schedule — it only
+// changes the day's displayed category, never the payout computation.
+func dayFlags(dayLogs []attendance.Log) (isLeave, autoLogout, isWeeklyOffOverride bool) {
+	for _, l := range dayLogs {
+		if l.IsLeave {
+			isLeave = true
+		}
+		if l.AutoLogout {
+			autoLogout = true
+		}
+		if l.IsWeeklyOff {
+			isWeeklyOffOverride = true
+		}
+	}
+	return
+}
+
 // ComputeAvailability builds a day-by-day and aggregate availability summary
 // for one employee across [from, to] (inclusive). Days before the employee's
-// start_date are excluded from expected/committed calculations entirely.
-// Leave days are tentatively credited in full here; ComputePayout applies
-// the monthly permitted-leave cap on top of this.
+// start_date are excluded from expected/actual calculations entirely.
 func ComputeAvailability(e employee.Employee, logs []attendance.Log, from, to time.Time) EmployeeAvailability {
 	byDate := groupByDate(logs, e.ID)
 	startDate, hasStartDate := parseDate(e.StartDate)
+
+	offDays := make(map[int]bool, len(e.WeeklyOffDays))
+	for _, d := range e.WeeklyOffDays {
+		offDays[d] = true
+	}
 
 	result := EmployeeAvailability{EmployeeID: e.ID, EmployeeName: e.Name}
 
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		beforeStart := hasStartDate && d.Before(startDate)
-		weekday := int(d.Weekday())
-		committed := !beforeStart && isCommittedDay(e.CommittedWorkingDays, weekday)
+		isWeeklyOff := offDays[int(d.Weekday())]
 		dateStr := d.Format("2006-01-02")
 		dayLogs := byDate[dateStr]
 
-		isLeaveMarked := false
-		isCompOffMarked := false
-		for _, l := range dayLogs {
-			if l.IsLeave {
-				isLeaveMarked = true
-			}
-			if l.IsCompOff {
-				isCompOffMarked = true
-			}
-		}
-		present := !isLeaveMarked && len(dayLogs) > 0
-		autoLogout := false
-		for _, l := range dayLogs {
-			if l.AutoLogout {
-				autoLogout = true
-			}
-		}
+		isLeaveMarked, autoLogout, isWeeklyOffOverride := dayFlags(dayLogs)
 		hoursWorked := sessionHours(dayLogs)
+		rounded := roundHoursToNearestHour(hoursWorked)
+		present := !isLeaveMarked && rounded > 0
 
 		day := DayAvailability{
-			Date:               dateStr,
-			BeforeStart:        beforeStart,
-			IsWeeklyOff:        !beforeStart && !committed,
-			WithinAvailability: committed,
-			Present:            present,
-			Leave:              isLeaveMarked,
-			AutoLogout:         autoLogout,
-			HoursWorked:        hoursWorked,
+			Date:          dateStr,
+			BeforeStart:   beforeStart,
+			IsWeeklyOff:   isWeeklyOff || isWeeklyOffOverride,
+			Present:       present,
+			Leave:         isLeaveMarked,
+			AutoLogout:    autoLogout,
+			HoursWorked:   hoursWorked,
+			RoundedHours:  rounded,
+			ExpectedHours: e.EligibleHoursPerDay,
 		}
 
 		switch {
 		case beforeStart:
 			day.Category = CategoryBeforeStart
-
-		case !committed: // weekly off
-			day.DayCredit = 1.0
-			if present && hoursWorked > 0 && !isCompOffMarked {
-				// Weekly off is already paid in full via DayCredit above, so
-				// only hours beyond a standard working day count as bonus —
-				// otherwise a normal shift worked on a weekly off would be
-				// paid twice (once as the day credit, once again in full as
-				// "bonus" hours).
-				day.Category = CategoryWeeklyOffWorked
-				day.BonusHours = math.Max(0, hoursWorked-standardDailyHours(e))
-			} else if present && hoursWorked > 0 {
-				// Comp-off: employee worked their weekly off but is banking
-				// the day instead of taking a bonus — no bonus hours.
-				day.Category = CategoryWeeklyOffWorked
-				day.CompOff = true
-			} else {
-				day.Category = CategoryWeeklyOff
-			}
-
 		case isLeaveMarked:
 			day.Category = CategoryLeave
-			day.DayCredit = 1.0
-
+		case isWeeklyOffOverride:
+			day.Category = CategoryWeeklyOff
+		case present:
+			day.Category = CategoryPresent
+		case isWeeklyOff:
+			day.Category = CategoryWeeklyOff
 		default:
-			day.ExpectedHours = expectedHoursForDay(e, weekday)
-			if day.ExpectedHours > 0 {
-				day.HoursPct = (hoursWorked / day.ExpectedHours) * 100
-			}
-			switch {
-			case hoursWorked == 0:
-				// No completed hours at all (never showed up, or clocked in
-				// but the session is still open) — plain absence, doesn't
-				// touch the leave allowance.
-				day.Category = CategoryAbsent
-			case hoursWorked < leaveHoursThreshold:
-				// Showed up but left early enough that it's treated as a
-				// leave day (auto), subject to the monthly allowance cap
-				// applied in ComputePayout — same as an admin-marked leave.
-				day.Category = CategoryLeave
-				day.DayCredit = 1.0
-			case hoursWorked < halfDayHoursCeiling:
-				day.Category = CategoryHalfDay
-				day.DayCredit = 0.5
-			case hoursWorked <= otHoursThreshold:
-				day.Category = CategoryFullDay
-				day.DayCredit = 1.0
-			default:
-				day.Category = CategoryFullDayOT
-				day.DayCredit = 1.0
-				day.BonusHours = hoursWorked - otHoursThreshold
-			}
+			day.Category = CategoryAbsent
 		}
 
-		if committed {
+		if !beforeStart {
 			result.ExpectedDays++
-			result.ExpectedHours += day.ExpectedHours
+			result.ExpectedHours += e.EligibleHoursPerDay
 		}
 		if present {
 			result.ActualDays++
@@ -330,128 +281,99 @@ func ComputeAvailability(e employee.Employee, logs []attendance.Log, from, to ti
 	return result
 }
 
-// ComputePayout computes a single employee's payout for a calendar month
-// under the hours-based policy:
-//   - Weekly-off days are always paid in full; working them adds an hourly
-//     bonus for every hour worked.
-//   - Committed working days pay absent/leave/half/full/OT based on
-//     absolute hours worked that day (0h absent, <5h auto-leave, 5-7h half,
-//     7-10h full, >10h full + hourly bonus for the hours beyond 10).
-//   - Approved leave pays in full up to the (prorated) monthly allowance;
-//     beyond that it's unpaid.
-//   - The daily rate is the prorated monthly pay divided by the number of
-//     countable calendar days in the period (not just committed days),
-//     since weekly offs are now part of the paid base.
-func ComputePayout(e employee.Employee, logs []attendance.Log, monthStart, monthEnd time.Time, advanceCents int64) EmployeePayout {
-	avail := ComputeAvailability(e, logs, monthStart, monthEnd)
+// ComputeHourlyPayout computes a single employee's payout for a calendar
+// month under the flat-hourly-rate policy described on EmployeePayout.
+func ComputeHourlyPayout(e employee.Employee, logs []attendance.Log, monthStart, monthEnd time.Time, advanceCents int64) EmployeePayout {
+	monthlyPay := e.MonthlyPayCents
 
-	fraction := prorationFraction(e.StartDate, monthStart, monthEnd)
-	fullMonthlyPay := e.MonthlyPayCents
-	proratedMonthlyPay := int64(math.Round(float64(fullMonthlyPay) * fraction))
-	proratedPermittedLeaves := int(math.Round(float64(e.PermittedLeavesPerMonth) * fraction))
-
-	totalDays := 0
-	for _, d := range avail.Days {
-		if !d.BeforeStart {
-			totalDays++
-		}
-	}
-
-	var dailyRateCents float64
-	if totalDays > 0 {
-		dailyRateCents = float64(proratedMonthlyPay) / float64(totalDays)
-	}
-	hourlyRateCents := dailyRateCents / standardDailyHours(e)
-
-	var (
-		basePay, bonusPay                                       float64
-		bonusHours                                              float64
-		fullDayCount, halfDayCount, absentCount, weeklyOffCount int
-		leaveUsed, leavesTaken, unpaidLeaveDays                 int
-	)
-
-	dailyCosts := make([]DailyLaborCost, 0, len(avail.Days))
-	for _, d := range avail.Days {
-		category := d.Category
-		dayCredit := d.DayCredit
-
-		if category == CategoryLeave {
-			leaveUsed++
-			if leaveUsed > proratedPermittedLeaves {
-				category = CategoryUnpaidLeave
-				dayCredit = 0
-				unpaidLeaveDays++
-			} else {
-				leavesTaken++
-			}
-		}
-
-		switch category {
-		case CategoryFullDay, CategoryFullDayOT:
-			fullDayCount++
-		case CategoryHalfDay:
-			halfDayCount++
-		case CategoryAbsent:
-			absentCount++
-		case CategoryWeeklyOff, CategoryWeeklyOffWorked:
-			weeklyOffCount++
-		}
-
-		dayCost := dayCredit*dailyRateCents + d.BonusHours*hourlyRateCents
-		dailyCosts = append(dailyCosts, DailyLaborCost{Date: d.Date, Category: category, CostCents: int64(math.Round(dayCost))})
-
-		basePay += dayCredit * dailyRateCents
-		bonusHours += d.BonusHours
-	}
-	bonusPay = bonusHours * hourlyRateCents
-
-	payout := int64(math.Round(basePay + bonusPay))
-	if payout < 0 {
-		payout = 0
-	}
-	netPayout := payout - advanceCents
-	if netPayout < 0 {
-		netPayout = 0
-	}
-
-	return EmployeePayout{
+	base := EmployeePayout{
 		EmployeeID:          e.ID,
 		EmployeeName:        e.Name,
-		MonthlyPayCents:     proratedMonthlyPay,
-		FullMonthlyPayCents: fullMonthlyPay,
-		TotalDays:           totalDays,
-		FullDayCount:        fullDayCount,
-		HalfDayCount:        halfDayCount,
-		AbsentCount:         absentCount,
-		WeeklyOffCount:      weeklyOffCount,
-		LeavesTaken:         leavesTaken,
-		PermittedLeaves:     proratedPermittedLeaves,
-		UnpaidLeaveDays:     unpaidLeaveDays,
-		BonusHours:          bonusHours,
-		BasePayCents:        int64(math.Round(basePay)),
-		BonusPayCents:       int64(math.Round(bonusPay)),
-		PayoutCents:         payout,
-		AdvanceCents:        advanceCents,
-		NetPayoutCents:      netPayout,
-		ProratedFraction:    fraction,
-		DailyCosts:          dailyCosts,
-	}
-}
-
-// prorationFraction returns what fraction of [monthStart, monthEnd] (both
-// inclusive calendar days) falls on or after startDateStr. Returns 1 if
-// startDateStr is empty/invalid or falls on/before monthStart, and 0 if it
-// falls after monthEnd.
-func prorationFraction(startDateStr string, monthStart, monthEnd time.Time) float64 {
-	startDate, ok := parseDate(startDateStr)
-	if !ok || !startDate.After(monthStart) {
-		return 1
-	}
-	if startDate.After(monthEnd) {
-		return 0
+		WeeklyOffDays:       e.WeeklyOffDays,
+		EligibleHoursPerDay: e.EligibleHoursPerDay,
 	}
 
-	daysInMonth := int(monthEnd.Sub(monthStart).Hours()/24) + 1
-	effectiveDays := int(monthEnd.Sub(startDate).Hours()/24) + 1
-	return float64(effectiveDays) / float64(daysInMonth)
+	startDate, hasStartDate := parseDate(e.StartDate)
+	windowStart := monthStart
+	if hasStartDate && startDate.After(windowStart) {
+		windowStart = startDate
+	}
+	if windowStart.After(monthEnd) {
+		// Employee hasn't started yet this month.
+		return base
+	}
+
+	byDate := groupByDate(logs, e.ID)
+
+	totalDays := int(monthEnd.Sub(windowStart).Hours()/24) + 1
+	weeklyOffCount := countWeeklyOffDays(e.WeeklyOffDays, windowStart, monthEnd)
+	workingDays := totalDays - weeklyOffCount
+	if workingDays < 0 {
+		workingDays = 0
+	}
+
+	var hourlyRateCents float64
+	if workingDays > 0 && e.EligibleHoursPerDay > 0 {
+		hourlyRateCents = float64(monthlyPay) / (float64(workingDays) * e.EligibleHoursPerDay)
+	}
+
+	offDays := make(map[int]bool, len(e.WeeklyOffDays))
+	for _, d := range e.WeeklyOffDays {
+		offDays[d] = true
+	}
+
+	var totalHours, grossPay float64
+	breakdown := make([]DailyPayoutLine, 0, totalDays)
+	for d := windowStart; !d.After(monthEnd); d = d.AddDate(0, 0, 1) {
+		dateStr := d.Format("2006-01-02")
+		dayLogs := byDate[dateStr]
+		isLeaveMarked, _, isWeeklyOffOverride := dayFlags(dayLogs)
+		raw := sessionHours(dayLogs)
+		rounded := roundHoursToNearestHour(raw)
+		dayPay := rounded * hourlyRateCents
+
+		category := CategoryAbsent
+		switch {
+		case isLeaveMarked:
+			category = CategoryLeave
+		case isWeeklyOffOverride:
+			category = CategoryWeeklyOff
+		case rounded > 0:
+			category = CategoryPresent
+		case offDays[int(d.Weekday())]:
+			category = CategoryWeeklyOff
+		}
+
+		totalHours += rounded
+		grossPay += dayPay
+		breakdown = append(breakdown, DailyPayoutLine{
+			Date:         dateStr,
+			Category:     category,
+			Sessions:     sessionTimesFor(dayLogs),
+			RawHours:     raw,
+			RoundedHours: rounded,
+			DayPayCents:  int64(math.Round(dayPay)),
+		})
+	}
+
+	gross := int64(math.Round(grossPay))
+	if gross < 0 {
+		gross = 0
+	}
+	net := gross - advanceCents
+	if net < 0 {
+		net = 0
+	}
+
+	base.MonthlyPayCents = monthlyPay
+	base.TotalDays = totalDays
+	base.WeeklyOffCount = weeklyOffCount
+	base.WorkingDaysInMonth = workingDays
+	base.HourlyRateCents = hourlyRateCents
+	base.TotalHoursWorked = totalHours
+	base.GrossPayCents = gross
+	base.AdvanceCents = advanceCents
+	base.NetPayoutCents = net
+	base.DailyBreakdown = breakdown
+	return base
 }

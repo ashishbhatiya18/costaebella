@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, Item, ItemStock, Supplier } from "@/lib/pantrly/api";
+import { api, Item, ItemStock, StockLog, Supplier } from "@/lib/pantrly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Card } from "@/components/admin/ui/card";
 import { Input } from "@/components/admin/ui/input";
@@ -14,6 +14,8 @@ import { ItemForm, ItemFormValue } from "@/components/pantrly/item-form";
 import { RecordDeliveryForm, DeliveryFormValue } from "@/components/pantrly/record-delivery-form";
 import { LogStockForm } from "@/components/pantrly/log-stock-form";
 import { DeliveriesModal } from "@/components/pantrly/deliveries-modal";
+import { StockLogsModal } from "@/components/pantrly/stock-logs-modal";
+import { StockLogsTable } from "@/components/pantrly/stock-logs-table";
 import { WastageForm, WastageFormValue } from "@/components/pantrly/wastage-form";
 import { WastageModal } from "@/components/pantrly/wastage-modal";
 import { AddItemSupplierForm } from "@/components/pantrly/add-item-supplier-form";
@@ -25,6 +27,12 @@ import { usePageTitle } from "@/lib/admin/use-page-title";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function daysAgo(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 // Days since a YYYY-MM-DD date, or null if never counted.
@@ -64,6 +72,8 @@ export default function ItemsPage() {
   const [editing, setEditing] = useState<Item | null>(null);
   const [deliveryFor, setDeliveryFor] = useState<Item | null>(null);
   const [logStockFor, setLogStockFor] = useState<Item | null>(null);
+  const [recentStockLogs, setRecentStockLogs] = useState<StockLog[]>([]);
+  const [stockLogsFor, setStockLogsFor] = useState<Item | null>(null);
   const [deliveriesFor, setDeliveriesFor] = useState<Item | null>(null);
   const [wastageFor, setWastageFor] = useState<Item | null>(null);
   const [wastageHistoryFor, setWastageHistoryFor] = useState<Item | null>(null);
@@ -121,6 +131,16 @@ export default function ItemsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!logStockFor) {
+      setRecentStockLogs([]);
+      return;
+    }
+    api
+      .listStockLogs({ item_id: logStockFor.id, from: daysAgo(90), to: daysAgo(0) })
+      .then((data) => setRecentStockLogs((data ?? []).slice().reverse()));
+  }, [logStockFor]);
 
   function openCreate() {
     setEditing(null);
@@ -227,6 +247,7 @@ export default function ItemsPage() {
           onEdit={openEdit}
           onDelete={handleDelete}
           onLogStock={setLogStockFor}
+          onStockLogs={setStockLogsFor}
           onDelivery={setDeliveryFor}
           onDeliveries={setDeliveriesFor}
           onWastage={setWastageFor}
@@ -297,9 +318,11 @@ export default function ItemsPage() {
                           </div>
 
                           <div className="mt-4 flex flex-wrap gap-2 border-t border-navy/10 pt-4">
-                            <Button size="sm" variant="secondary" onClick={() => setLogStockFor(it)}>
-                              Count stock
-                            </Button>
+                            <SplitButton
+                              label="Add Stock Count"
+                              onClick={() => setLogStockFor(it)}
+                              options={[{ label: "View Stock Counts", onClick: () => setStockLogsFor(it) }]}
+                            />
                             <Button size="sm" variant="secondary" onClick={() => setMenuImpactFor(it)}>
                               Menu impact
                             </Button>
@@ -362,17 +385,32 @@ export default function ItemsPage() {
       <Modal
         open={logStockFor !== null}
         onClose={() => setLogStockFor(null)}
-        title={logStockFor ? `Log stock — ${logStockFor.name}` : "Log stock"}
+        title={logStockFor ? `Add stock count — ${logStockFor.name}` : "Add stock count"}
       >
         {logStockFor && (
-          <LogStockForm
-            unit={logStockFor.unit}
-            currentEstimate={stockByItem.get(logStockFor.id)?.current_stock ?? null}
-            onSubmit={handleLogStock}
-            onCancel={() => setLogStockFor(null)}
-          />
+          <div className="space-y-5">
+            <LogStockForm
+              unit={logStockFor.unit}
+              currentEstimate={stockByItem.get(logStockFor.id)?.current_stock ?? null}
+              onSubmit={handleLogStock}
+              onCancel={() => setLogStockFor(null)}
+            />
+            <div className="border-t border-navy/10 pt-4">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy/50">
+                Past stock counts
+              </h4>
+              <StockLogsTable logs={recentStockLogs} unit={logStockFor.unit} />
+            </div>
+          </div>
         )}
       </Modal>
+
+      <StockLogsModal
+        itemId={stockLogsFor?.id ?? null}
+        itemName={stockLogsFor?.name ?? ""}
+        unit={stockLogsFor?.unit ?? ""}
+        onClose={() => setStockLogsFor(null)}
+      />
 
       <DeliveriesModal
         itemId={deliveriesFor?.id ?? null}

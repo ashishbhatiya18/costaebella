@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, PayoutSummaryResponse } from "@/lib/shiftly/api";
+import { buildPayoutReportPdf } from "@/lib/shiftly/payout-report";
 import { Card } from "@/components/admin/ui/card";
+import { Button } from "@/components/admin/ui/button";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 
@@ -51,7 +53,7 @@ export default function PayoutSummaryPage() {
       <div className="mb-6">
         <h1 className="font-display text-2xl text-navy">Payout Summary</h1>
         <p className="mt-1 text-sm text-navy/60">
-          Computed from committed schedule, permitted leaves, and logged attendance.
+          Computed as a flat hourly rate — monthly pay ÷ (working days × eligible hours/day) — times hours actually worked.
         </p>
       </div>
 
@@ -77,72 +79,43 @@ export default function PayoutSummaryPage() {
               <thead className="bg-cream/60 text-xs uppercase tracking-wide text-navy/50">
                 <tr>
                   <th className="px-5 py-3 font-medium">Employee</th>
-                  <th className="px-5 py-3 font-medium">Full days</th>
-                  <th className="px-5 py-3 font-medium">Half days</th>
-                  <th className="px-5 py-3 font-medium">Absent</th>
-                  <th className="px-5 py-3 font-medium">Weekly off</th>
-                  <th className="px-5 py-3 font-medium">Leaves used</th>
-                  <th className="px-5 py-3 font-medium">Unpaid</th>
-                  <th className="px-5 py-3 font-medium">Bonus hrs</th>
+                  <th className="px-5 py-3 font-medium">Hourly rate</th>
+                  <th className="px-5 py-3 font-medium">Hours worked</th>
+                  <th className="px-5 py-3 font-medium">Working days</th>
+                  <th className="px-5 py-3 text-right font-medium">Gross pay</th>
                   <th className="px-5 py-3 text-right font-medium">Advance</th>
                   <th className="px-5 py-3 text-right font-medium">Net payout</th>
+                  <th className="px-5 py-3 font-medium">Report</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-navy/10">
                 {data?.employees.map((e) => (
                   <tr key={e.employee_id} className="text-navy/70">
                     <td className="px-5 py-3 font-medium text-navy">{e.employee_name}</td>
-                    <td className="px-5 py-3">
-                      {e.full_day_count} / {e.total_days}
-                    </td>
-                    <td className="px-5 py-3">{e.half_day_count}</td>
-                    <td className="px-5 py-3">
-                      {e.absent_count > 0 ? (
-                        <span className="text-coral">{e.absent_count}</span>
-                      ) : (
-                        "0"
-                      )}
-                    </td>
-                    <td className="px-5 py-3">{e.weekly_off_count}</td>
-                    <td className="px-5 py-3">
-                      {e.leaves_taken}/{e.permitted_leaves}
-                    </td>
-                    <td className="px-5 py-3">
-                      {e.unpaid_leave_days > 0 ? (
-                        <span className="text-coral">{e.unpaid_leave_days}</span>
-                      ) : (
-                        "0"
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {e.bonus_hours > 0 ? (
-                        <span className="text-teal">{e.bonus_hours.toFixed(1)}</span>
-                      ) : (
-                        "0"
-                      )}
-                    </td>
+                    <td className="px-5 py-3">{formatMoney(e.hourly_rate_cents)}/hr</td>
+                    <td className="px-5 py-3">{e.total_hours_worked}h</td>
+                    <td className="px-5 py-3">{e.working_days_in_month}</td>
+                    <td className="px-5 py-3 text-right">{formatMoney(e.gross_pay_cents)}</td>
                     <td className="px-5 py-3 text-right text-coral">
                       {e.advance_cents > 0 ? `- ${formatMoney(e.advance_cents)}` : "—"}
                     </td>
                     <td className="px-5 py-3 text-right font-semibold text-navy">
                       {formatMoney(e.net_payout_cents)}
-                      {e.bonus_pay_cents > 0 && (
-                        <div className="mt-0.5 text-right text-xs font-normal text-teal">
-                          incl. {formatMoney(e.bonus_pay_cents)} bonus
-                        </div>
-                      )}
-                      {e.prorated_fraction < 1 && (
-                        <div className="mt-0.5 text-right text-xs font-normal text-amber-600">
-                          Prorated ({Math.round(e.prorated_fraction * 100)}% of{" "}
-                          {formatMoney(e.full_monthly_pay_cents)})
-                        </div>
-                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => buildPayoutReportPdf(e.employee_name, data.month, e)}
+                      >
+                        Download
+                      </Button>
                     </td>
                   </tr>
                 ))}
                 {data?.employees.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-5 py-8 text-center text-navy/50">
+                    <td colSpan={8} className="px-5 py-8 text-center text-navy/50">
                       No employees to show yet.
                     </td>
                   </tr>

@@ -103,7 +103,7 @@ func (h *Handler) PayoutSummary(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]EmployeePayout, 0, len(employees))
 	for _, e := range employees {
-		results = append(results, ComputePayout(e, logs, monthStart, monthEnd, advanceTotals[e.ID]))
+		results = append(results, ComputeHourlyPayout(e, logs, monthStart, monthEnd, advanceTotals[e.ID]))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -120,7 +120,7 @@ func (h *Handler) PayoutSummary(w http.ResponseWriter, r *http.Request) {
 // calendar month the way PayoutSummary does. Internally runs the same
 // ComputePayout used for the real payout run (so day-level costs stay
 // consistent with prorated-leave/permitted-leave logic) once per month the
-// range touches, then clips each employee's DailyCosts to the requested
+// range touches, then clips each employee's daily breakdown to the requested
 // window and sums across employees. Advances are intentionally not netted
 // here — this is gross labor cost, not "what's left to pay out".
 func (h *Handler) LaborCostSummary(w http.ResponseWriter, r *http.Request) {
@@ -147,15 +147,12 @@ func (h *Handler) LaborCostSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Irregular categories: any employee-day short of a normal full
-	// presence (or an expected weekly off). Used by Intel-ly to flag days
-	// where staffing deviated from standard operational timings and
-	// correlate that against revenue.
+	// Irregular categories: any employee-day that wasn't a normal worked
+	// presence. Used by Intel-ly to flag days where staffing deviated from
+	// standard operational timings and correlate that against revenue.
 	isIrregular := map[string]bool{
-		CategoryHalfDay:     true,
-		CategoryAbsent:      true,
-		CategoryLeave:       true,
-		CategoryUnpaidLeave: true,
+		CategoryAbsent: true,
+		CategoryLeave:  true,
 	}
 
 	type dayAgg struct {
@@ -174,13 +171,10 @@ func (h *Handler) LaborCostSummary(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, e := range employees {
-			payout := ComputePayout(e, logs, monthStart, monthEnd, 0)
-			for _, dc := range payout.DailyCosts {
+			payout := ComputeHourlyPayout(e, logs, monthStart, monthEnd, 0)
+			for _, dc := range payout.DailyBreakdown {
 				d, err := time.Parse("2006-01-02", dc.Date)
 				if err != nil || d.Before(from) || d.After(to) {
-					continue
-				}
-				if dc.Category == CategoryBeforeStart {
 					continue
 				}
 				agg, ok := totals[dc.Date]
@@ -188,7 +182,7 @@ func (h *Handler) LaborCostSummary(w http.ResponseWriter, r *http.Request) {
 					agg = &dayAgg{}
 					totals[dc.Date] = agg
 				}
-				agg.costCents += dc.CostCents
+				agg.costCents += dc.DayPayCents
 				agg.employeeDayCount++
 				if isIrregular[dc.Category] {
 					agg.irregularCount++

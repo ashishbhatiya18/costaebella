@@ -54,6 +54,7 @@ export const api = {
     date: string;
     is_leave: boolean;
     is_comp_off: boolean;
+    is_weekly_off?: boolean;
     sessions: { login_time: string; logout_time: string | null }[];
   }) =>
     request<AttendanceLog[]>("/api/shiftly/attendance/override", {
@@ -110,23 +111,15 @@ export type Advance = {
   notes: string;
 };
 
-export type ShiftInterval = {
-  id?: string;
-  day_of_week: number | null;
-  start_time: string;
-  end_time: string;
-};
-
 export type Employee = {
   id: string;
   name: string;
   shift_name: string;
   monthly_pay_cents: number;
-  committed_working_days: number[];
-  permitted_leaves_per_month: number;
+  weekly_off_days: number[]; // 0=Sun..6=Sat
+  eligible_hours_per_day: number;
   start_date: string;
   active: boolean;
-  shift_intervals: ShiftInterval[];
   created_at?: string;
   updated_at?: string;
 };
@@ -140,6 +133,7 @@ export type AttendanceLog = {
   auto_logout: boolean;
   is_leave: boolean;
   is_comp_off: boolean;
+  is_weekly_off: boolean;
 };
 
 export type ActivityItem = {
@@ -154,32 +148,19 @@ export type ActivityResponse = {
   has_more: boolean;
 };
 
-export type DayCategory =
-  | "before_start"
-  | "weekly_off"
-  | "weekly_off_worked"
-  | "leave"
-  | "unpaid_leave"
-  | "absent"
-  | "half_day"
-  | "full_day"
-  | "full_day_ot";
+export type DayCategory = "before_start" | "present" | "leave" | "absent" | "weekly_off";
 
 export type DayAvailability = {
   date: string;
   before_start: boolean;
   is_weekly_off: boolean;
-  within_availability: boolean;
   present: boolean;
   leave: boolean;
-  comp_off: boolean;
   auto_logout: boolean;
   hours_worked: number;
+  rounded_hours: number;
   expected_hours: number;
-  hours_pct: number;
   category: DayCategory;
-  day_credit: number;
-  bonus_hours: number;
 };
 
 export type EmployeeAvailability = {
@@ -200,26 +181,35 @@ export type AttendanceSummaryResponse = {
   employees: EmployeeAvailability[];
 };
 
+export type SessionTimes = {
+  login: string; // RFC3339
+  logout: string | null; // RFC3339, or null if still open
+};
+
+export type DailyPayoutLine = {
+  date: string;
+  category: "present" | "leave" | "absent" | "weekly_off";
+  sessions: SessionTimes[];
+  raw_hours: number;
+  rounded_hours: number;
+  day_pay_cents: number;
+};
+
 export type EmployeePayout = {
   employee_id: string;
   employee_name: string;
   monthly_pay_cents: number;
-  full_monthly_pay_cents: number;
   total_days: number;
-  full_day_count: number;
-  half_day_count: number;
-  absent_count: number;
-  weekly_off_count: number;
-  leaves_taken: number;
-  permitted_leaves: number;
-  unpaid_leave_days: number;
-  bonus_hours: number;
-  base_pay_cents: number;
-  bonus_pay_cents: number;
-  payout_cents: number;
+  weekly_off_days: number[]; // 0=Sun..6=Sat
+  weekly_off_count: number; // actual occurrences of those weekdays in the period
+  eligible_hours_per_day: number;
+  working_days_in_month: number; // integer — total_days - weekly_off_count
+  hourly_rate_cents: number;
+  total_hours_worked: number;
+  gross_pay_cents: number;
   advance_cents: number;
   net_payout_cents: number;
-  prorated_fraction: number;
+  daily_breakdown: DailyPayoutLine[];
 };
 
 export type PayoutSummaryResponse = {

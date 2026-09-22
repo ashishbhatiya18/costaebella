@@ -69,6 +69,22 @@ func (h *Handler) ListLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, logs)
 }
 
+// DeleteLog handles DELETE /api/pantrly/stock/{id} — removes a recorded
+// opening/closing count.
+func (h *Handler) DeleteLog(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	ok, err := h.repo.DeleteLog(r.Context(), id)
+	if err != nil {
+		http.Error(w, "failed to delete stock log", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "stock log not found", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // RecordPurchase handles POST /api/pantrly/purchases — logs a delivery
 // received from a (typically offline) supplier, increasing stock.
 func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {

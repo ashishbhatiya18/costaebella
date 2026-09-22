@@ -83,6 +83,7 @@ export function StockSummaryList({
   onEdit,
   onDelete,
   onLogStock,
+  onStockLogs,
   onDelivery,
   onDeliveries,
   onWastage,
@@ -97,6 +98,7 @@ export function StockSummaryList({
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
   onLogStock: (item: Item) => void;
+  onStockLogs: (item: Item) => void;
   onDelivery: (item: Item) => void;
   onDeliveries: (item: Item) => void;
   onWastage: (item: Item) => void;
@@ -265,7 +267,8 @@ export function StockSummaryList({
                             <ActionsMenu
                               options={[
                                 { label: "Edit item", onClick: () => onEdit(fullItem) },
-                                { label: "Count stock", onClick: () => onLogStock(fullItem) },
+                                { label: "Add Stock Count", onClick: () => onLogStock(fullItem) },
+                                { label: "View Stock Counts", onClick: () => onStockLogs(fullItem) },
                                 { label: "Add delivery", onClick: () => onDelivery(fullItem) },
                                 { label: "Deliveries", onClick: () => onDeliveries(fullItem) },
                                 { label: "Price trend", onClick: () => onPriceTrend(fullItem) },

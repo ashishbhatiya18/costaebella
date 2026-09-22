@@ -34,18 +34,18 @@ func (r *Repo) InsertSession(ctx context.Context, employeeID, date string, login
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `
-		DELETE FROM attendance_logs WHERE employee_id = $1 AND log_date = $2 AND is_leave = true`,
+		DELETE FROM attendance_logs WHERE employee_id = $1 AND log_date = $2 AND (is_leave = true OR is_weekly_off = true)`,
 		employeeID, date); err != nil {
-		return nil, fmt.Errorf("clear leave marker: %w", err)
+		return nil, fmt.Errorf("clear leave/weekly-off marker: %w", err)
 	}
 
 	var l Log
 	err = tx.QueryRow(ctx, `
 		INSERT INTO attendance_logs (employee_id, log_date, login_time)
 		VALUES ($1, $2, $3)
-		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off`,
+		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off, is_weekly_off`,
 		employeeID, date, loginTime).Scan(
-		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff)
+		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff, &l.IsWeeklyOff)
 	if err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
 	}
@@ -70,9 +70,9 @@ func (r *Repo) CloseOpenSession(ctx context.Context, employeeID, date string, lo
 			ORDER BY login_time DESC
 			LIMIT 1
 		)
-		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off`,
+		RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off, is_weekly_off`,
 		employeeID, date, logoutTime).Scan(
-		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff)
+		&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff, &l.IsWeeklyOff)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoOpenSession
 	}
@@ -83,12 +83,13 @@ func (r *Repo) CloseOpenSession(ctx context.Context, employeeID, date string, lo
 }
 
 // ReplaceDay replaces all attendance rows for an employee+date with either a
-// single leave marker (isLeave=true, sessions ignored) or the given list of
-// sessions (optionally flagged isCompOff, e.g. a weekly off worked and
-// banked instead of paid as a bonus). Runs as one transaction so the day is
-// never left inconsistent.
-func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions []SessionInput, isLeave bool, isCompOff bool) ([]Log, error) {
-	if !isLeave {
+// single leave marker (isLeave=true, sessions ignored), a single weekly-off
+// marker (isWeeklyOff=true, sessions ignored — display only, doesn't affect
+// payout computation), or the given list of sessions (optionally flagged
+// isCompOff, e.g. a weekly off worked and banked instead of paid as a
+// bonus). Runs as one transaction so the day is never left inconsistent.
+func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions []SessionInput, isLeave bool, isCompOff bool, isWeeklyOff bool) ([]Log, error) {
+	if !isLeave && !isWeeklyOff {
 		if err := checkSessionOverlaps(sessions); err != nil {
 			return nil, err
 		}
@@ -106,14 +107,14 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 	}
 
 	var out []Log
-	insertOne := func(loginTime *time.Time, logoutTime *time.Time, leave bool, compOff bool) error {
+	insertOne := func(loginTime *time.Time, logoutTime *time.Time, leave bool, compOff bool, weeklyOff bool) error {
 		var l Log
 		err := tx.QueryRow(ctx, `
-			INSERT INTO attendance_logs (employee_id, log_date, login_time, logout_time, is_leave, is_comp_off)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off`,
-			employeeID, date, loginTime, logoutTime, leave, compOff).Scan(
-			&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff)
+			INSERT INTO attendance_logs (employee_id, log_date, login_time, logout_time, is_leave, is_comp_off, is_weekly_off)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off, is_weekly_off`,
+			employeeID, date, loginTime, logoutTime, leave, compOff, weeklyOff).Scan(
+			&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff, &l.IsWeeklyOff)
 		if err != nil {
 			return fmt.Errorf("insert row: %w", err)
 		}
@@ -121,11 +122,16 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 		return nil
 	}
 
-	if isLeave {
-		if err := insertOne(nil, nil, true, false); err != nil {
+	switch {
+	case isLeave:
+		if err := insertOne(nil, nil, true, false, false); err != nil {
 			return nil, err
 		}
-	} else {
+	case isWeeklyOff:
+		if err := insertOne(nil, nil, false, false, true); err != nil {
+			return nil, err
+		}
+	default:
 		for _, s := range sessions {
 			loginTime, err := time.Parse(time.RFC3339, s.LoginTime)
 			if err != nil {
@@ -139,7 +145,7 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 				}
 				logoutTime = &parsed
 			}
-			if err := insertOne(&loginTime, logoutTime, false, isCompOff); err != nil {
+			if err := insertOne(&loginTime, logoutTime, false, isCompOff, false); err != nil {
 				return nil, err
 			}
 		}
@@ -157,7 +163,7 @@ func (r *Repo) ReplaceDay(ctx context.Context, employeeID, date string, sessions
 // rows now that split-shift sessions are supported.
 func (r *Repo) ListRange(ctx context.Context, employeeID, from, to string) ([]Log, error) {
 	query := `
-		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off
+		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off, is_weekly_off
 		FROM attendance_logs
 		WHERE log_date BETWEEN $1 AND $2 AND ($3 = '' OR employee_id::text = $3)
 		ORDER BY employee_id, log_date, login_time`
@@ -171,7 +177,7 @@ func (r *Repo) ListRange(ctx context.Context, employeeID, from, to string) ([]Lo
 	var out []Log
 	for rows.Next() {
 		var l Log
-		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff); err != nil {
+		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff, &l.IsWeeklyOff); err != nil {
 			return nil, fmt.Errorf("scan log: %w", err)
 		}
 		out = append(out, l)
@@ -183,7 +189,7 @@ func (r *Repo) ListRange(ctx context.Context, employeeID, from, to string) ([]Lo
 // logout_time yet, across all employees. Used by the auto-logout reconciler.
 func (r *Repo) ListOpen(ctx context.Context) ([]Log, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off
+		SELECT id, employee_id, log_date::text, login_time, logout_time, auto_logout, is_leave, is_comp_off, is_weekly_off
 		FROM attendance_logs
 		WHERE login_time IS NOT NULL AND logout_time IS NULL`)
 	if err != nil {
@@ -194,7 +200,7 @@ func (r *Repo) ListOpen(ctx context.Context) ([]Log, error) {
 	var out []Log
 	for rows.Next() {
 		var l Log
-		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff); err != nil {
+		if err := rows.Scan(&l.ID, &l.EmployeeID, &l.LogDate, &l.LoginTime, &l.LogoutTime, &l.AutoLogout, &l.IsLeave, &l.IsCompOff, &l.IsWeeklyOff); err != nil {
 			return nil, fmt.Errorf("scan open log: %w", err)
 		}
 		out = append(out, l)

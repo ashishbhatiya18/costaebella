@@ -100,31 +100,26 @@ export default function EmployeesPage() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-1.5">
-                {DAY_LABELS.map((label, idx) => (
-                  <span
-                    key={label}
-                    className={
-                      "rounded-md px-2 py-0.5 text-xs font-medium " +
-                      (e.committed_working_days.includes(idx)
-                        ? "bg-teal/15 text-teal"
-                        : "bg-navy/5 text-navy/30")
-                    }
-                  >
-                    {label}
+                {e.weekly_off_days.length === 0 ? (
+                  <span className="rounded-md bg-navy/5 px-2 py-0.5 text-xs font-medium text-navy/40">
+                    No weekly off
                   </span>
-                ))}
+                ) : (
+                  e.weekly_off_days.map((d) => (
+                    <span
+                      key={d}
+                      className="rounded-md bg-teal/15 px-2 py-0.5 text-xs font-medium text-teal"
+                    >
+                      {DAY_LABELS[d]} off
+                    </span>
+                  ))
+                )}
+                <span className="rounded-md bg-navy/5 px-2 py-0.5 text-xs font-medium text-navy/50">
+                  {e.eligible_hours_per_day}h/day
+                </span>
               </div>
 
               <div className="mt-3 space-y-1 text-xs text-navy/50">
-                {e.shift_intervals.map((iv, i) => (
-                  <div key={i}>
-                    {iv.day_of_week === null
-                      ? "Every day"
-                      : DAY_LABELS[iv.day_of_week]}
-                    : {iv.start_time}–{iv.end_time}
-                  </div>
-                ))}
-                <div>{e.permitted_leaves_per_month} leaves/month permitted</div>
                 <div>Start date: {e.start_date}</div>
               </div>
 

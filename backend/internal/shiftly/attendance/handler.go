@@ -80,8 +80,12 @@ func (h *Handler) Override(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "employee_id and date are required", http.StatusBadRequest)
 		return
 	}
+	if err := validateSessions(req.Sessions); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	logs, err := h.repo.ReplaceDay(r.Context(), req.EmployeeID, req.Date, req.Sessions, req.IsLeave, req.IsCompOff)
+	logs, err := h.repo.ReplaceDay(r.Context(), req.EmployeeID, req.Date, req.Sessions, req.IsLeave, req.IsCompOff, req.IsWeeklyOff)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to override attendance: %v", err), http.StatusBadRequest)
 		return
@@ -89,6 +93,33 @@ func (h *Handler) Override(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(logs)
+}
+
+// maxSessionHours caps any single manually-entered session so a mis-typed
+// date/month (e.g. logout accidentally logged a month after login) can't
+// silently inflate hours-worked/payout by hundreds of hours.
+const maxSessionHours = 24.0
+
+// validateSessions rejects any override session whose login-to-logout span
+// exceeds maxSessionHours.
+func validateSessions(sessions []SessionInput) error {
+	for _, s := range sessions {
+		if s.LogoutTime == nil {
+			continue
+		}
+		login, err := time.Parse(time.RFC3339, s.LoginTime)
+		if err != nil {
+			return fmt.Errorf("invalid login_time format, expected RFC3339: %v", err)
+		}
+		logout, err := time.Parse(time.RFC3339, *s.LogoutTime)
+		if err != nil {
+			return fmt.Errorf("invalid logout_time format, expected RFC3339: %v", err)
+		}
+		if logout.Sub(login).Hours() > maxSessionHours {
+			return fmt.Errorf("session %s to %s exceeds the %gh maximum — check the date/time", s.LoginTime, *s.LogoutTime, maxSessionHours)
+		}
+	}
+	return nil
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

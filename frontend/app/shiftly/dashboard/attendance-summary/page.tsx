@@ -27,49 +27,17 @@ const CATEGORY_STYLE: Record<
   { label: string; className: string; letter?: string }
 > = {
   before_start: { label: "before joining", className: "bg-navy/5 text-navy/30" },
-  weekly_off: { label: "weekly off", className: "bg-navy/10 text-navy/50" },
-  weekly_off_worked: {
-    label: "worked on weekly off",
-    className: "bg-teal/15 text-teal ring-1 ring-teal/40",
-  },
+  present: { label: "present", className: "bg-teal/20 text-teal ring-1 ring-teal/40" },
   leave: { label: "on leave", className: "bg-sand/40 text-navy ring-1 ring-sand", letter: "L" },
-  unpaid_leave: {
-    label: "unpaid leave (over allowance)",
-    className: "bg-coral/25 text-coral ring-1 ring-coral/50",
-    letter: "L",
-  },
   absent: { label: "absent (0h worked)", className: "bg-coral/10 text-coral ring-1 ring-coral/30" },
-  half_day: {
-    label: "half day (5-7h worked)",
-    className: "bg-amber-400/20 text-amber-700 ring-1 ring-amber-400/50",
-    letter: "½",
-  },
-  full_day: {
-    label: "full day (7-10h worked)",
-    className: "bg-teal/20 text-teal ring-1 ring-teal/40",
-  },
-  full_day_ot: {
-    label: "full day + overtime (>10h worked)",
-    className: "bg-teal/20 text-teal ring-2 ring-coral/60",
-  },
-};
-
-const COMP_OFF_STYLE = {
-  label: "comp off (worked, banked — no bonus)",
-  className: "bg-sand/30 text-navy ring-1 ring-sand",
-  letter: "C",
+  weekly_off: { label: "weekly off", className: "bg-navy/10 text-navy/50" },
 };
 
 const LEGEND_ITEMS: { label: string; swatch: string }[] = [
-  { label: "Full day", swatch: "bg-teal/50" },
-  { label: "Full day + OT", swatch: "bg-teal/50 ring-2 ring-coral" },
-  { label: "Half day", swatch: "bg-amber-400/50" },
+  { label: "Present", swatch: "bg-teal/50" },
   { label: "Absent", swatch: "bg-coral/40" },
-  { label: "Weekly off", swatch: "bg-navy/20" },
-  { label: "Weekly off (worked)", swatch: "bg-teal/40" },
-  { label: "Comp off", swatch: "bg-sand/60" },
   { label: "Leave", swatch: "bg-sand" },
-  { label: "Unpaid leave", swatch: "bg-coral/60" },
+  { label: "Weekly off", swatch: "bg-navy/20" },
   { label: "Before joining", swatch: "bg-navy/10" },
 ];
 
@@ -186,7 +154,7 @@ export default function AttendanceSummaryPage() {
     forceRender();
   }
 
-  async function bulkMark(mode: "present" | "leave") {
+  async function bulkMark(mode: "present" | "leave" | "weekly_off") {
     const sel = selectionRef.current;
     const employee = sel ? employeesById[sel.employeeId] : null;
     if (!sel || !employee) return;
@@ -196,12 +164,25 @@ export default function AttendanceSummaryPage() {
     try {
       await Promise.all(
         Array.from(sel.dates).map((date) => {
+          // is_comp_off is always false now — the concept no longer affects
+          // pay under the flat-hourly model, but the attendance schema/API
+          // still accepts the field.
           if (mode === "leave") {
             return api.overrideAttendance({
               employee_id: sel.employeeId,
               date,
               is_leave: true,
               is_comp_off: false,
+              sessions: [],
+            });
+          }
+          if (mode === "weekly_off") {
+            return api.overrideAttendance({
+              employee_id: sel.employeeId,
+              date,
+              is_leave: false,
+              is_comp_off: false,
+              is_weekly_off: true,
               sessions: [],
             });
           }
@@ -285,7 +266,7 @@ export default function AttendanceSummaryPage() {
                 const isSelected =
                   selection?.employeeId === emp.employee_id &&
                   selection.dates.has(day.date);
-                const style = day.comp_off ? COMP_OFF_STYLE : CATEGORY_STYLE[day.category];
+                const style = CATEGORY_STYLE[day.category];
                 return (
                   <button
                     key={day.date}
@@ -302,11 +283,9 @@ export default function AttendanceSummaryPage() {
                     onTouchMove={handleTouchMove}
                     onClick={() => handleDayClick(emp.employee_id, day.date)}
                     title={`${day.date} — ${style.label}${
-                      day.expected_hours > 0
-                        ? ` (${day.hours_worked.toFixed(1)}h / ${day.expected_hours.toFixed(1)}h, ${day.hours_pct.toFixed(0)}%)`
-                        : day.hours_worked > 0
-                          ? ` (${day.hours_worked.toFixed(1)}h worked)`
-                          : ""
+                      day.hours_worked > 0
+                        ? ` (${day.hours_worked.toFixed(1)}h worked, rounded to ${day.rounded_hours}h)`
+                        : ""
                     }${day.auto_logout ? " · auto logged out" : ""} — click, or click-drag to select multiple`}
                     className={clsx(
                       "relative flex h-9 w-9 items-center justify-center rounded-lg text-[11px] font-medium transition-transform hover:scale-105",
@@ -355,6 +334,14 @@ export default function AttendanceSummaryPage() {
               disabled={bulkSaving}
             >
               Mark as leave
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => bulkMark("weekly_off")}
+              disabled={bulkSaving}
+            >
+              Mark as weekly off
             </Button>
             <Button size="sm" onClick={() => bulkMark("present")} disabled={bulkSaving}>
               {bulkSaving ? "Saving…" : "Mark as present"}

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -98,8 +97,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// validateEmployee checks basic invariants, including that shift intervals
-// for the same day (or the "every day" nil group) do not overlap.
+// validateEmployee checks basic invariants for the hourly payout model.
 func validateEmployee(e Employee) error {
 	if strings.TrimSpace(e.Name) == "" {
 		return fmt.Errorf("name is required")
@@ -107,81 +105,23 @@ func validateEmployee(e Employee) error {
 	if _, err := time.Parse("2006-01-02", e.StartDate); err != nil {
 		return fmt.Errorf("start_date must be a valid date (YYYY-MM-DD)")
 	}
-
-	byDay := map[int][]ShiftInterval{}
-	var everyDay []ShiftInterval
-	for _, si := range e.ShiftIntervals {
-		if si.StartTime == si.EndTime {
-			return fmt.Errorf("shift interval start_time must not equal end_time")
-		}
-		if si.DayOfWeek == nil {
-			everyDay = append(everyDay, si)
-		} else {
-			byDay[*si.DayOfWeek] = append(byDay[*si.DayOfWeek], si)
-		}
+	if len(e.WeeklyOffDays) > 7 {
+		return fmt.Errorf("weekly_off_days cannot list more than 7 days")
 	}
-
-	if err := checkOverlaps(everyDay); err != nil {
-		return err
-	}
-	if hrs := totalHours(everyDay); hrs > maxDailyShiftHours {
-		return fmt.Errorf("total shift hours (every day) is %.1fh, exceeding the %gh maximum", hrs, maxDailyShiftHours)
-	}
-	for day, intervals := range byDay {
-		combined := append(append([]ShiftInterval{}, intervals...), everyDay...)
-		if err := checkOverlaps(combined); err != nil {
-			return fmt.Errorf("day %d: %w", day, err)
+	seen := map[int]bool{}
+	for _, d := range e.WeeklyOffDays {
+		if d < 0 || d > 6 {
+			return fmt.Errorf("weekly_off_days must each be between 0 (Sunday) and 6 (Saturday)")
 		}
-		if hrs := totalHours(combined); hrs > maxDailyShiftHours {
-			return fmt.Errorf("day %d: total shift hours is %.1fh, exceeding the %gh maximum", day, hrs, maxDailyShiftHours)
+		if seen[d] {
+			return fmt.Errorf("weekly_off_days contains a duplicate day")
 		}
+		seen[d] = true
+	}
+	if e.EligibleHoursPerDay <= 0 || e.EligibleHoursPerDay > 24 {
+		return fmt.Errorf("eligible_hours_per_day must be greater than 0 and at most 24")
 	}
 	return nil
-}
-
-// maxDailyShiftHours is the hard cap on an employee's total configured
-// shift hours for any single day.
-const maxDailyShiftHours = 15.0
-
-// totalHours sums the duration of a set of shift intervals, treating
-// end<=start as an overnight shift.
-func totalHours(intervals []ShiftInterval) float64 {
-	var total float64
-	for _, si := range intervals {
-		start := minutesOf(si.StartTime)
-		end := minutesOf(si.EndTime)
-		if end <= start {
-			end += 24 * 60
-		}
-		total += float64(end-start) / 60.0
-	}
-	return total
-}
-
-// checkOverlaps validates that no two intervals overlap within the same day.
-// Intervals where end_time <= start_time (e.g. 16:00-00:00 or 23:00-05:00)
-// are treated as overnight shifts that run past midnight.
-func checkOverlaps(intervals []ShiftInterval) error {
-	sorted := append([]ShiftInterval{}, intervals...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].StartTime < sorted[j].StartTime })
-	for i := 1; i < len(sorted); i++ {
-		prevEnd := minutesOf(sorted[i-1].EndTime)
-		prevStart := minutesOf(sorted[i-1].StartTime)
-		if prevEnd <= prevStart {
-			prevEnd += 24 * 60
-		}
-		if minutesOf(sorted[i].StartTime) < prevEnd {
-			return fmt.Errorf("overlapping shift intervals: %s-%s and %s-%s",
-				sorted[i-1].StartTime, sorted[i-1].EndTime, sorted[i].StartTime, sorted[i].EndTime)
-		}
-	}
-	return nil
-}
-
-func minutesOf(hhmm string) int {
-	var h, m int
-	fmt.Sscanf(hhmm, "%d:%d", &h, &m)
-	return h*60 + m
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

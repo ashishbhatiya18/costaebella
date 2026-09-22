@@ -148,6 +148,7 @@ func main() {
 
 		pr.Post("/api/pantrly/stock/log", stockHandler.Log)
 		pr.Get("/api/pantrly/stock", stockHandler.ListLogs)
+		pr.Delete("/api/pantrly/stock/{id}", stockHandler.DeleteLog)
 		pr.Post("/api/pantrly/purchases", stockHandler.RecordPurchase)
 		pr.Get("/api/pantrly/purchases", stockHandler.ListPurchases)
 		pr.Delete("/api/pantrly/purchases/{id}", stockHandler.DeletePurchase)

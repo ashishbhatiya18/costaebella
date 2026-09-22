@@ -8,6 +8,7 @@ import { Label } from "@/components/admin/ui/input";
 import { getShiftSessionsForDate } from "@/lib/shiftly/shift-times";
 
 type SessionRow = { loginTime: string; logoutTime: string };
+type Mode = "present" | "leave" | "weekly_off";
 
 function toDatetimeLocal(iso: string | null): string {
   if (!iso) return "";
@@ -37,8 +38,7 @@ export function AttendanceOverrideModal({
   const employeeId = employee.id;
   const employeeName = employee.name;
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [isLeave, setIsLeave] = useState(false);
-  const [isCompOff, setIsCompOff] = useState(false);
+  const [mode, setMode] = useState<Mode>("present");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +52,10 @@ export function AttendanceOverrideModal({
         if (cancelled) return;
         const rows = logs ?? [];
         const leaveMarked = rows.some((l) => l.is_leave);
-        setIsLeave(leaveMarked);
-        setIsCompOff(!leaveMarked && rows.some((l) => l.is_comp_off));
+        const weeklyOffMarked = rows.some((l) => l.is_weekly_off);
+        setMode(leaveMarked ? "leave" : weeklyOffMarked ? "weekly_off" : "present");
         setSessions(
-          leaveMarked
+          leaveMarked || weeklyOffMarked
             ? []
             : rows.map((l) => ({
                 loginTime: toDatetimeLocal(l.login_time),
@@ -77,8 +77,7 @@ export function AttendanceOverrideModal({
         logoutTime: toDatetimeLocal(s.logout_time),
       })),
     );
-    setIsLeave(false);
-    setIsCompOff(false);
+    setMode("present");
   }
 
   function updateSession(idx: number, patch: Partial<SessionRow>) {
@@ -97,20 +96,22 @@ export function AttendanceOverrideModal({
     setSaving(true);
     setError(null);
     try {
-      const payloadSessions = isLeave
-        ? []
-        : sessions
-            .filter((s) => s.loginTime)
-            .map((s) => ({
-              login_time: toIso(s.loginTime)!,
-              logout_time: toIso(s.logoutTime),
-            }));
+      const payloadSessions =
+        mode !== "present"
+          ? []
+          : sessions
+              .filter((s) => s.loginTime)
+              .map((s) => ({
+                login_time: toIso(s.loginTime)!,
+                logout_time: toIso(s.logoutTime),
+              }));
 
       await api.overrideAttendance({
         employee_id: employeeId,
         date,
-        is_leave: isLeave,
-        is_comp_off: !isLeave && isCompOff,
+        is_leave: mode === "leave",
+        is_comp_off: false,
+        is_weekly_off: mode === "weekly_off",
         sessions: payloadSessions,
       });
       onSaved();
@@ -135,39 +136,33 @@ export function AttendanceOverrideModal({
             variant="secondary"
             className="w-full"
             onClick={handleMarkPresent}
-            disabled={isLeave}
+            disabled={mode === "present"}
           >
             Mark as present (use shift hours)
           </Button>
 
-          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-navy/15 bg-cream/30 px-3.5 py-2.5">
-            <input
-              type="checkbox"
-              checked={isLeave}
-              onChange={(e) => {
-                setIsLeave(e.target.checked);
-                if (e.target.checked) setIsCompOff(false);
-              }}
-              className="h-4 w-4 rounded border-navy/30 bg-white text-teal focus:ring-teal"
-            />
-            <span className="text-sm font-medium text-navy">Mark as leave</span>
-          </label>
-
-          {!isLeave && (
+          <div className="grid grid-cols-2 gap-2.5">
             <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-navy/15 bg-cream/30 px-3.5 py-2.5">
               <input
                 type="checkbox"
-                checked={isCompOff}
-                onChange={(e) => setIsCompOff(e.target.checked)}
+                checked={mode === "leave"}
+                onChange={(e) => setMode(e.target.checked ? "leave" : "present")}
                 className="h-4 w-4 rounded border-navy/30 bg-white text-teal focus:ring-teal"
               />
-              <span className="text-sm font-medium text-navy">
-                Comp off (worked a day off, banking it instead of an hourly bonus)
-              </span>
+              <span className="text-sm font-medium text-navy">Mark as leave</span>
             </label>
-          )}
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-navy/15 bg-cream/30 px-3.5 py-2.5">
+              <input
+                type="checkbox"
+                checked={mode === "weekly_off"}
+                onChange={(e) => setMode(e.target.checked ? "weekly_off" : "present")}
+                className="h-4 w-4 rounded border-navy/30 bg-white text-teal focus:ring-teal"
+              />
+              <span className="text-sm font-medium text-navy">Mark as weekly off</span>
+            </label>
+          </div>
 
-          {!isLeave && (
+          {mode === "present" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="mb-0">Sessions</Label>
@@ -217,10 +212,10 @@ export function AttendanceOverrideModal({
           )}
 
           <p className="text-xs text-navy/50">
-            {isLeave
+            {mode === "leave"
               ? "Marking as leave clears any sessions logged for this day."
-              : isCompOff
-                ? "Comp off only applies on a weekly off day worked: the day is still paid in full, but no hourly bonus is added on top."
+              : mode === "weekly_off"
+                ? "Marking as weekly off clears any sessions logged for this day. This only changes how the day is displayed (here and in the payout report) — it does not affect the payout calculation, which is always based on the employee's recurring weekly-off schedule."
                 : "Leave a session's logout blank if it's still open. Saving overrides any auto-logout and is recorded as an admin correction."}
           </p>
 

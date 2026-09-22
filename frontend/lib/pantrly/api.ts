@@ -150,6 +150,9 @@ export const api = {
     return request<StockLog[]>(`/api/pantrly/stock?${q.toString()}`);
   },
 
+  deleteStockLog: (id: string) =>
+    request<void>(`/api/pantrly/stock/${id}`, { method: "DELETE" }),
+
   recordPurchase: (body: {
     item_id: string;
     supplier_id?: string | null;

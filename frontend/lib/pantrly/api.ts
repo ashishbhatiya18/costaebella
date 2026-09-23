@@ -54,6 +54,11 @@ export type ItemStock = {
   low_stock: boolean;
   last_log_date: string | null;
   consumed_in_range: number | null;
+  // How many days consumed_in_range actually spans — may be shorter than
+  // the requested range if the item's logging history doesn't go back
+  // that far yet. Divide consumed_in_range by this (not the requested
+  // range length) to get an accurate per-day/week rate.
+  range_days: number | null;
 };
 
 export type StockSummaryResponse = {

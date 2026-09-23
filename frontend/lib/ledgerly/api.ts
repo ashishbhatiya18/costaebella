@@ -7,8 +7,12 @@ import { apiRequest, ApiError } from "@/lib/admin/api";
 
 export { ApiError };
 
-function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  return apiRequest<T>(path, options, "/admin/login");
+function request<T>(
+  path: string,
+  options: RequestInit = {},
+  redirectOnForbidden: boolean = true,
+): Promise<T> {
+  return apiRequest<T>(path, options, "/admin/login", redirectOnForbidden);
 }
 
 export type Category =
@@ -71,7 +75,10 @@ export type PnlSummary = {
 export const api = {
   // Access probe for the gated P&L summary — 200 if allowed, throws
   // ApiError(403) otherwise.
-  checkAccess: () => request<void>("/api/ledgerly/access"),
+  // A 403 here is an expected "not this role" outcome (used to hide the
+  // P&L Summary tab for non-owners), not a session problem — don't let it
+  // redirect.
+  checkAccess: () => request<void>("/api/ledgerly/access", {}, false),
 
   logSale: (body: {
     sale_date?: string;

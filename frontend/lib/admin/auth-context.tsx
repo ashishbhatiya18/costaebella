@@ -16,10 +16,14 @@ import {
   getStoredEmail,
   setStoredEmail,
   clearStoredEmail,
+  getStoredRole,
+  setStoredRole,
+  clearStoredRole,
 } from "./api";
 
 type AuthContextValue = {
   email: string | null;
+  role: string;
   isLoading: boolean;
   loginWithGoogle: (credential: string, redirectTo?: string) => Promise<void>;
   logout: () => void;
@@ -34,6 +38,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -42,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedEmail = getStoredEmail();
     if (token && storedEmail) {
       setEmail(storedEmail);
+      setRole(getStoredRole());
     }
     setIsLoading(false);
   }, []);
@@ -51,7 +57,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await adminApi.googleLogin(credential);
       setToken(res.token);
       setStoredEmail(res.email);
+      setStoredRole(res.role);
       setEmail(res.email);
+      setRole(res.role);
       router.push(redirectTo);
     },
     [router],
@@ -60,12 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     clearToken();
     clearStoredEmail();
+    clearStoredRole();
     setEmail(null);
+    setRole("");
     router.push("/admin/login");
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ email, isLoading, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ email, role, isLoading, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

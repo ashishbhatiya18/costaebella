@@ -37,7 +37,7 @@ export default function PnlSummaryPage() {
         <Card className="mt-6 p-10 text-center">
           <p className="font-medium text-navy">You don&apos;t have access to the P&amp;L summary.</p>
           <p className="mt-1 text-sm text-navy/60">
-            This view is restricted to a small set of emails. Log Income and Expense are still available to you.
+            This view is restricted to the owner role. Log Income and Expense are still available to you.
           </p>
         </Card>
       </div>

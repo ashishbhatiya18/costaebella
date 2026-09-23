@@ -7,6 +7,7 @@ import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { useAuth } from "@/lib/admin/auth-context";
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -36,15 +37,33 @@ function formatMoney(cents: number) {
 
 export default function PayoutSummaryPage() {
   usePageTitle("Payout Summary");
+  const { role } = useAuth();
+  const allowed = role === "owner" || role === "accounting";
   const months = useMemo(() => recentMonths(6), []);
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState<PayoutSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!allowed) return;
     setLoading(true);
     api.payoutSummary(month).then(setData).finally(() => setLoading(false));
-  }, [month]);
+  }, [allowed, month]);
+
+  // Nav already hides this tab for non-accounting roles — this covers
+  // direct navigation. Real enforcement is server-side
+  // (GET /api/shiftly/summary/payout).
+  if (!allowed) {
+    return (
+      <div>
+        <h1 className="font-display text-2xl text-navy">Payout Summary</h1>
+        <Card className="mt-6 p-10 text-center">
+          <p className="font-medium text-navy">You don&apos;t have access to the payout summary.</p>
+          <p className="mt-1 text-sm text-navy/60">This view is restricted to the accounting role.</p>
+        </Card>
+      </div>
+    );
+  }
 
   const total = data?.employees.reduce((sum, e) => sum + e.net_payout_cents, 0) ?? 0;
 

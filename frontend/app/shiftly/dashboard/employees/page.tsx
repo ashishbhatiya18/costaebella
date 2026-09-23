@@ -9,6 +9,7 @@ import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
 import { EmployeeForm, EmployeeFormValue } from "@/components/shiftly/employee-form";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { useAuth } from "@/lib/admin/auth-context";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -22,6 +23,7 @@ function formatMoney(cents: number) {
 
 export default function EmployeesPage() {
   usePageTitle("Manage Employees");
+  const { role } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,6 +67,20 @@ export default function EmployeesPage() {
     if (!confirm("Delete this employee? This cannot be undone.")) return;
     await api.deleteEmployee(id);
     await load();
+  }
+
+  // Nav already hides this tab for non-owners — this covers direct
+  // navigation. Real enforcement is server-side (/api/shiftly/employees).
+  if (role !== "owner") {
+    return (
+      <div>
+        <h1 className="font-display text-2xl text-navy">Manage Employees</h1>
+        <Card className="mt-6 p-10 text-center">
+          <p className="font-medium text-navy">You don&apos;t have access to Manage Employees.</p>
+          <p className="mt-1 text-sm text-navy/60">This view is restricted to the owner role.</p>
+        </Card>
+      </div>
+    );
   }
 
   return (

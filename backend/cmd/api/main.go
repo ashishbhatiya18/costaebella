@@ -8,10 +8,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	accessly "attendance-app/costaebella-backend/internal/accessly/access"
+	accessuser "attendance-app/costaebella-backend/internal/accessly/user"
 	"attendance-app/costaebella-backend/internal/auth"
 	"attendance-app/costaebella-backend/internal/config"
 	"attendance-app/costaebella-backend/internal/db"
-	"attendance-app/costaebella-backend/internal/ledgerly/access"
 	"attendance-app/costaebella-backend/internal/ledgerly/payment"
 	"attendance-app/costaebella-backend/internal/ledgerly/pnl"
 	"attendance-app/costaebella-backend/internal/ledgerly/revenue"
@@ -51,10 +52,7 @@ func main() {
 		log.Fatalf("admin whitelist seed failed: %v", err)
 	}
 
-	ledgerlyAccessRepo := access.NewRepo(pool)
-	if err := ledgerlyAccessRepo.SeedWhitelistedEmails(ctx, cfg.LedgerlyAdminEmails); err != nil {
-		log.Fatalf("ledgerly whitelist seed failed: %v", err)
-	}
+	accessUserRepo := accessuser.NewRepo(pool)
 
 	employeeRepo := employee.NewRepo(pool)
 	attendanceRepo := attendance.NewRepo(pool)
@@ -69,6 +67,7 @@ func main() {
 	compositionRepo := composition.NewRepo(pool)
 
 	authHandler := auth.NewHandler(authSvc)
+	accessUserHandler := accessuser.NewHandler(accessUserRepo)
 	employeeHandler := employee.NewHandler(employeeRepo)
 	attendanceHandler := attendance.NewHandler(attendanceRepo)
 	advanceHandler := advance.NewHandler(advanceRepo)
@@ -101,92 +100,134 @@ func main() {
 	r.Group(func(pr chi.Router) {
 		pr.Use(middleware.RequireAuth(authSvc))
 
-		pr.Route("/api/shiftly/employees", func(er chi.Router) {
-			er.Get("/", employeeHandler.List)
-			er.Post("/", employeeHandler.Create)
-			er.Get("/{id}", employeeHandler.Get)
-			er.Put("/{id}", employeeHandler.Update)
-			er.Delete("/{id}", employeeHandler.Delete)
+		// Shiftly employee management — owner only. Attendance logging and
+		// the rest of Shiftly below stays open to operations too.
+		pr.Group(func(er chi.Router) {
+			er.Use(accessly.RequireOwner())
+			er.Route("/api/shiftly/employees", func(r chi.Router) {
+				r.Get("/", employeeHandler.List)
+				r.Post("/", employeeHandler.Create)
+				r.Get("/{id}", employeeHandler.Get)
+				r.Put("/{id}", employeeHandler.Update)
+				r.Delete("/{id}", employeeHandler.Delete)
+			})
 		})
 
-		pr.Post("/api/shiftly/attendance/log", attendanceHandler.Log)
-		pr.Put("/api/shiftly/attendance/override", attendanceHandler.Override)
-		pr.Get("/api/shiftly/attendance", attendanceHandler.List)
-		pr.Get("/api/shiftly/attendance/activity", attendanceHandler.Activity)
+		// Shiftly — staff attendance/payout, restricted to owners and
+		// operations (the roles who actually run shifts and pay staff).
+		pr.Group(func(sr chi.Router) {
+			sr.Use(accessly.RequireRole(accessuser.RoleOwner, accessuser.RoleOperations))
 
-		pr.Route("/api/shiftly/advances", func(ar chi.Router) {
-			ar.Get("/", advanceHandler.List)
-			ar.Post("/", advanceHandler.Create)
-			ar.Get("/{id}", advanceHandler.Get)
-			ar.Put("/{id}", advanceHandler.Update)
-			ar.Delete("/{id}", advanceHandler.Delete)
+			sr.Post("/api/shiftly/attendance/log", attendanceHandler.Log)
+			sr.Put("/api/shiftly/attendance/override", attendanceHandler.Override)
+			sr.Get("/api/shiftly/attendance", attendanceHandler.List)
+			sr.Get("/api/shiftly/attendance/activity", attendanceHandler.Activity)
+
+			sr.Route("/api/shiftly/advances", func(ar chi.Router) {
+				ar.Get("/", advanceHandler.List)
+				ar.Post("/", advanceHandler.Create)
+				ar.Get("/{id}", advanceHandler.Get)
+				ar.Put("/{id}", advanceHandler.Update)
+				ar.Delete("/{id}", advanceHandler.Delete)
+			})
+
+			sr.Get("/api/shiftly/summary/attendance", payoutHandler.AttendanceSummary)
+			sr.Get("/api/shiftly/summary/labor-cost", payoutHandler.LaborCostSummary)
 		})
 
-		pr.Get("/api/shiftly/summary/attendance", payoutHandler.AttendanceSummary)
-		pr.Get("/api/shiftly/summary/payout", payoutHandler.PayoutSummary)
-		pr.Get("/api/shiftly/summary/labor-cost", payoutHandler.LaborCostSummary)
-
-		pr.Route("/api/pantrly/items", func(ir chi.Router) {
-			ir.Get("/", itemHandler.List)
-			ir.Post("/", itemHandler.Create)
-			ir.Get("/{id}", itemHandler.Get)
-			ir.Put("/{id}", itemHandler.Update)
-			ir.Delete("/{id}", itemHandler.Delete)
-			ir.Post("/{id}/suppliers", itemHandler.AddSupplier)
-			ir.Get("/{id}/suppliers", itemHandler.ListItemSuppliers)
-			ir.Delete("/{id}/suppliers/{supplier_id}", itemHandler.RemoveSupplier)
+		// Shiftly payout summary — pay figures are accounting's domain, not
+		// operations'. Owner + accounting only, unlike the rest of Shiftly
+		// above (owner + operations).
+		pr.Group(func(pyr chi.Router) {
+			pyr.Use(accessly.RequireRole(accessuser.RoleOwner, accessuser.RoleAccounting))
+			pyr.Get("/api/shiftly/summary/payout", payoutHandler.PayoutSummary)
 		})
 
-		pr.Route("/api/pantrly/suppliers", func(sr chi.Router) {
-			sr.Get("/", supplierHandler.List)
-			sr.Post("/", supplierHandler.Create)
-			sr.Get("/{id}", supplierHandler.Get)
-			sr.Put("/{id}", supplierHandler.Update)
-			sr.Delete("/{id}", supplierHandler.Delete)
-			sr.Get("/{id}/items", supplierHandler.ListItems)
+		// Pantrly — inventory tracker, same owner+operations roles as Shiftly.
+		pr.Group(func(ir chi.Router) {
+			ir.Use(accessly.RequireRole(accessuser.RoleOwner, accessuser.RoleOperations))
+
+			ir.Route("/api/pantrly/items", func(r chi.Router) {
+				r.Get("/", itemHandler.List)
+				r.Post("/", itemHandler.Create)
+				r.Get("/{id}", itemHandler.Get)
+				r.Put("/{id}", itemHandler.Update)
+				r.Delete("/{id}", itemHandler.Delete)
+				r.Post("/{id}/suppliers", itemHandler.AddSupplier)
+				r.Get("/{id}/suppliers", itemHandler.ListItemSuppliers)
+				r.Delete("/{id}/suppliers/{supplier_id}", itemHandler.RemoveSupplier)
+			})
+
+			ir.Route("/api/pantrly/suppliers", func(r chi.Router) {
+				r.Get("/", supplierHandler.List)
+				r.Post("/", supplierHandler.Create)
+				r.Get("/{id}", supplierHandler.Get)
+				r.Put("/{id}", supplierHandler.Update)
+				r.Delete("/{id}", supplierHandler.Delete)
+				r.Get("/{id}/items", supplierHandler.ListItems)
+			})
+
+			ir.Post("/api/pantrly/stock/log", stockHandler.Log)
+			ir.Get("/api/pantrly/stock", stockHandler.ListLogs)
+			ir.Delete("/api/pantrly/stock/{id}", stockHandler.DeleteLog)
+			ir.Post("/api/pantrly/purchases", stockHandler.RecordPurchase)
+			ir.Get("/api/pantrly/purchases", stockHandler.ListPurchases)
+			ir.Delete("/api/pantrly/purchases/{id}", stockHandler.DeletePurchase)
+			ir.Get("/api/pantrly/summary/stock", stockHandler.Summary)
+
+			ir.Post("/api/pantrly/wastage", wastageHandler.Log)
+			ir.Get("/api/pantrly/wastage", wastageHandler.List)
+			ir.Delete("/api/pantrly/wastage/{id}", wastageHandler.Delete)
 		})
 
-		pr.Post("/api/pantrly/stock/log", stockHandler.Log)
-		pr.Get("/api/pantrly/stock", stockHandler.ListLogs)
-		pr.Delete("/api/pantrly/stock/{id}", stockHandler.DeleteLog)
-		pr.Post("/api/pantrly/purchases", stockHandler.RecordPurchase)
-		pr.Get("/api/pantrly/purchases", stockHandler.ListPurchases)
-		pr.Delete("/api/pantrly/purchases/{id}", stockHandler.DeletePurchase)
-		pr.Get("/api/pantrly/summary/stock", stockHandler.Summary)
+		// Ledgerly data entry — restricted to owners and accounting.
+		pr.Group(func(lr chi.Router) {
+			lr.Use(accessly.RequireRole(accessuser.RoleOwner, accessuser.RoleAccounting))
 
-		pr.Post("/api/pantrly/wastage", wastageHandler.Log)
-		pr.Get("/api/pantrly/wastage", wastageHandler.List)
-		pr.Delete("/api/pantrly/wastage/{id}", wastageHandler.Delete)
+			lr.Route("/api/ledgerly/payments", func(r chi.Router) {
+				r.Get("/", paymentHandler.List)
+				r.Post("/", paymentHandler.Create)
+				r.Get("/{id}", paymentHandler.Get)
+				r.Put("/{id}", paymentHandler.Update)
+				r.Delete("/{id}", paymentHandler.Delete)
+			})
+			lr.Post("/api/ledgerly/revenue/sales", revenueHandler.LogSale)
+			lr.Get("/api/ledgerly/revenue/sales", revenueHandler.ListSales)
 
-		// Ledgerly data entry — same access as every other admin route.
-		pr.Route("/api/ledgerly/payments", func(lr chi.Router) {
-			lr.Get("/", paymentHandler.List)
-			lr.Post("/", paymentHandler.Create)
-			lr.Get("/{id}", paymentHandler.Get)
-			lr.Put("/{id}", paymentHandler.Update)
-			lr.Delete("/{id}", paymentHandler.Delete)
+			// Ledgerly P&L summary, and the whole of Menuly/Intel-ly —
+			// owner-only, narrower than the owner/accounting role check
+			// above that gates the rest of Ledgerly. Intel-ly has no routes
+			// of its own (it only composes other apps' endpoints
+			// client-side), so gating Menuly here plus the frontend
+			// app-level gate is what actually restricts it.
+			lr.Group(func(gr chi.Router) {
+				gr.Use(accessly.RequireOwner())
+				gr.Get("/api/ledgerly/access", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
+				gr.Get("/api/ledgerly/summary/pnl", pnlHandler.Summary)
+
+				gr.Get("/api/menuly/visibility", visibilityHandler.List)
+				gr.Put("/api/menuly/visibility", visibilityHandler.Set)
+
+				gr.Get("/api/menuly/composition", compositionHandler.List)
+				gr.Put("/api/menuly/composition", compositionHandler.Set)
+				gr.Delete("/api/menuly/composition/{id}", compositionHandler.Delete)
+			})
 		})
-		pr.Post("/api/ledgerly/revenue/sales", revenueHandler.LogSale)
-		pr.Get("/api/ledgerly/revenue/sales", revenueHandler.ListSales)
 
-		// Ledgerly P&L summary, and the whole of Menuly/Intel-ly — narrower
-		// whitelist on top of RequireAuth. Intel-ly has no routes of its own
-		// (it only composes other apps' endpoints client-side), so gating
-		// Menuly here plus the frontend app-level gate is what actually
-		// restricts it.
-		pr.Group(func(gr chi.Router) {
-			gr.Use(access.RequireLedgerlyAdmin(ledgerlyAccessRepo))
-			gr.Get("/api/ledgerly/access", func(w http.ResponseWriter, r *http.Request) {
+		// Accessly — user account management, owner-only.
+		pr.Group(func(ar chi.Router) {
+			ar.Use(accessly.RequireOwner())
+			ar.Get("/api/accessly/access", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNoContent)
 			})
-			gr.Get("/api/ledgerly/summary/pnl", pnlHandler.Summary)
-
-			gr.Get("/api/menuly/visibility", visibilityHandler.List)
-			gr.Put("/api/menuly/visibility", visibilityHandler.Set)
-
-			gr.Get("/api/menuly/composition", compositionHandler.List)
-			gr.Put("/api/menuly/composition", compositionHandler.Set)
-			gr.Delete("/api/menuly/composition/{id}", compositionHandler.Delete)
+			ar.Route("/api/accessly/users", func(ur chi.Router) {
+				ur.Get("/", accessUserHandler.List)
+				ur.Post("/", accessUserHandler.Create)
+				ur.Put("/{id}/role", accessUserHandler.UpdateRole)
+				ur.Delete("/{id}", accessUserHandler.Delete)
+			})
 		})
 	})
 

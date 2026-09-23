@@ -66,6 +66,7 @@ export default function ItemsPage() {
   usePageTitle("Items");
   const [items, setItems] = useState<Item[]>([]);
   const [stockByItem, setStockByItem] = useState<Map<string, ItemStock>>(new Map());
+  const [avgWeeklyByItem, setAvgWeeklyByItem] = useState<Map<string, number>>(new Map());
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -115,14 +116,27 @@ export default function ItemsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [itemsData, suppliersData, stockData] = await Promise.all([
+      const [itemsData, suppliersData, stockData, avgWindowData] = await Promise.all([
         api.listItems(),
         api.listSuppliers(),
         api.stockSummary("week", today()),
+        // 4-week lookback so "average per week" smooths over a single
+        // unusually light/heavy week rather than just repeating it.
+        api.stockSummaryRange(daysAgo(28), today()),
       ]);
       setItems(itemsData ?? []);
       setSuppliers(suppliersData ?? []);
       setStockByItem(new Map((stockData.items ?? []).map((s) => [s.item_id, s])));
+      setAvgWeeklyByItem(
+        new Map(
+          (avgWindowData.items ?? [])
+            // range_days may be shorter than the requested 28 days if an
+            // item's logging history doesn't go back that far yet — divide
+            // by the actual observed span, not a fixed 4 weeks.
+            .filter((s) => s.consumed_in_range != null && s.range_days)
+            .map((s) => [s.item_id, ((s.consumed_in_range as number) / (s.range_days as number)) * 7]),
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -279,6 +293,7 @@ export default function ItemsPage() {
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {categoryItems.map((it) => {
                       const stock = stockByItem.get(it.id) ?? null;
+                      const avgWeekly = avgWeeklyByItem.get(it.id) ?? null;
                       const days = daysSince(stock?.last_log_date ?? null);
                       const level = staleness(days);
                       return (
@@ -312,6 +327,9 @@ export default function ItemsPage() {
                           </div>
                           <div className="mt-1 text-xs text-navy/50">
                             Order below quantity: {it.par_level} {it.unit}
+                          </div>
+                          <div className="mt-1 text-xs text-navy/50">
+                            Avg weekly usage: {avgWeekly != null ? `${avgWeekly.toFixed(1)} ${it.unit}` : "—"}
                           </div>
                           <div className={"mt-1 text-xs font-medium " + STALENESS_CLASSES[level]}>
                             {countLabel(days)}

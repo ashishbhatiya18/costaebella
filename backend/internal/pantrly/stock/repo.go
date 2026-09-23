@@ -198,65 +198,117 @@ func (r *Repo) Summary(ctx context.Context) ([]ItemStock, error) {
 	return out, rows.Err()
 }
 
-// RangeFigures returns, per item, the opening quantity logged on `from`,
-// the closing quantity logged on `to`, and purchases within [from, to] —
-// callers derive consumption as opening + purchased - closing when both
-// endpoints are present.
+// RangeFigures returns, per item, the estimated stock level at the start
+// and end of a window, plus purchases within it — callers derive
+// consumption as stockAtAnchor + purchased - stockAtTo.
+//
+// The window's start ("anchor") is the latest log on or before `from`, same
+// "latest logged quantity — closing preferred over opening" approach as
+// Summary(). But Pantrly logging can start well after `from` for an item
+// (or for the restaurant as a whole, early on) — if no log exists that far
+// back, the anchor instead falls back to that item's earliest log within
+// (from, to], so a short logging history still yields a real, if shorter,
+// observed window instead of nothing at all. AnchorDate reports whichever
+// date was actually used, so callers can compute an accurate per-day/week
+// rate instead of assuming the full requested range was observed.
 func (r *Repo) RangeFigures(ctx context.Context, from, to string) (map[string]rangeFigures, error) {
 	out := map[string]rangeFigures{}
 
 	rows, err := r.pool.Query(ctx, `
-		SELECT item_id, log_date::text, opening_qty, closing_qty
-		FROM pantrly_stock_logs
-		WHERE log_date IN ($1, $2)`, from, to)
+		SELECT i.id,
+		       from_anchor.log_date, from_anchor.opening_qty, from_anchor.closing_qty,
+		       COALESCE(from_p.qty_since, 0),
+		       to_latest.log_date, to_latest.opening_qty, to_latest.closing_qty, COALESCE(to_p.qty_since, 0)
+		FROM pantrly_items i
+		LEFT JOIN LATERAL (
+			(SELECT log_date::text AS log_date, opening_qty, closing_qty, 0 AS pref
+			 FROM pantrly_stock_logs
+			 WHERE item_id = i.id AND log_date <= $1::date
+			   AND (opening_qty IS NOT NULL OR closing_qty IS NOT NULL)
+			 ORDER BY log_date DESC LIMIT 1)
+			UNION ALL
+			(SELECT log_date::text AS log_date, opening_qty, closing_qty, 1 AS pref
+			 FROM pantrly_stock_logs
+			 WHERE item_id = i.id AND log_date > $1::date AND log_date <= $2::date
+			   AND (opening_qty IS NOT NULL OR closing_qty IS NOT NULL)
+			 ORDER BY log_date ASC LIMIT 1)
+			ORDER BY pref ASC LIMIT 1
+		) from_anchor ON true
+		LEFT JOIN LATERAL (
+			SELECT COALESCE(SUM(quantity), 0) AS qty_since
+			FROM pantrly_purchases
+			WHERE item_id = i.id
+			  AND purchase_date > from_anchor.log_date::date
+			  AND purchase_date <= $2::date
+		) from_p ON true
+		LEFT JOIN LATERAL (
+			SELECT log_date::text AS log_date, opening_qty, closing_qty
+			FROM pantrly_stock_logs
+			WHERE item_id = i.id AND log_date <= $2::date
+			  AND (opening_qty IS NOT NULL OR closing_qty IS NOT NULL)
+			ORDER BY log_date DESC
+			LIMIT 1
+		) to_latest ON true
+		LEFT JOIN LATERAL (
+			SELECT COALESCE(SUM(quantity), 0) AS qty_since
+			FROM pantrly_purchases
+			WHERE item_id = i.id
+			  AND purchase_date > COALESCE(to_latest.log_date::date, '1900-01-01'::date)
+			  AND purchase_date <= $2::date
+		) to_p ON true
+		WHERE i.active = true`, from, to)
 	if err != nil {
-		return nil, fmt.Errorf("query range logs: %w", err)
+		return nil, fmt.Errorf("query range figures: %w", err)
 	}
-	for rows.Next() {
-		var itemID, logDate string
-		var opening, closing *float64
-		if err := rows.Scan(&itemID, &logDate, &opening, &closing); err != nil {
-			rows.Close()
-			return nil, fmt.Errorf("scan range log: %w", err)
-		}
-		fig := out[itemID]
-		if logDate == from && opening != nil {
-			fig.OpeningAtFrom = opening
-		}
-		if logDate == to && closing != nil {
-			fig.ClosingAtTo = closing
-		}
-		out[itemID] = fig
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+	defer rows.Close()
 
-	prows, err := r.pool.Query(ctx, `
-		SELECT item_id, COALESCE(SUM(quantity), 0)
-		FROM pantrly_purchases
-		WHERE purchase_date BETWEEN $1 AND $2
-		GROUP BY item_id`, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("query range purchases: %w", err)
-	}
-	defer prows.Close()
-	for prows.Next() {
+	for rows.Next() {
 		var itemID string
-		var purchased float64
-		if err := prows.Scan(&itemID, &purchased); err != nil {
-			return nil, fmt.Errorf("scan range purchase: %w", err)
+		var anchorDate, toLogDate *string
+		var anchorOpening, anchorClosing, toOpening, toClosing *float64
+		var purchasedSinceAnchor, toQtySince float64
+		if err := rows.Scan(
+			&itemID,
+			&anchorDate, &anchorOpening, &anchorClosing, &purchasedSinceAnchor,
+			&toLogDate, &toOpening, &toClosing, &toQtySince,
+		); err != nil {
+			return nil, fmt.Errorf("scan range figures: %w", err)
 		}
-		fig := out[itemID]
-		fig.Purchased = purchased
+
+		fig := rangeFigures{}
+		if anchorDate != nil {
+			base := 0.0
+			if anchorClosing != nil {
+				base = *anchorClosing
+			} else if anchorOpening != nil {
+				base = *anchorOpening
+			}
+			stock := base
+			fig.StockAtFrom = &stock
+			fig.Purchased = purchasedSinceAnchor
+			fig.AnchorDate = anchorDate
+		}
+		if toLogDate != nil {
+			base := 0.0
+			if toClosing != nil {
+				base = *toClosing
+			} else if toOpening != nil {
+				base = *toOpening
+			}
+			stock := base + toQtySince
+			fig.StockAtTo = &stock
+		}
 		out[itemID] = fig
 	}
-	return out, prows.Err()
+	return out, rows.Err()
 }
 
 type rangeFigures struct {
-	OpeningAtFrom *float64
-	ClosingAtTo   *float64
-	Purchased     float64
+	StockAtFrom *float64
+	StockAtTo   *float64
+	Purchased   float64
+	// AnchorDate is the log date actually used as the window's start —
+	// see RangeFigures' doc comment for why it may be later than the
+	// requested `from`.
+	AnchorDate *string
 }

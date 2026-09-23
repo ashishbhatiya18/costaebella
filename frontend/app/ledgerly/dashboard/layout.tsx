@@ -11,6 +11,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/admin/auth-context";
 import { clsx } from "@/lib/admin/clsx";
 import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
+import { useAppRoleGuard } from "@/lib/admin/use-app-role-guard";
 
 function CoinIcon({ className }: { className?: string }) {
   return (
@@ -62,6 +63,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { email, isLoading } = useAuth();
+  useAppRoleGuard("ledgerly");
   const access = useLedgerlyAccess();
   const navItems = NAV_ITEMS.filter((item) => !item.gated || access === "allowed");
 

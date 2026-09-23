@@ -21,6 +21,7 @@ type googleLoginRequest struct {
 type loginResponse struct {
 	Token string `json:"token"`
 	Email string `json:"email"`
+	Role  string `json:"role"`
 }
 
 // GoogleLogin exchanges a Google ID token for a session JWT, provided the
@@ -32,7 +33,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, email, err := h.svc.LoginWithGoogle(r.Context(), req.Credential)
+	token, email, role, err := h.svc.LoginWithGoogle(r.Context(), req.Credential)
 	if errors.Is(err, ErrEmailNotWhitelisted) {
 		http.Error(w, "this email is not authorized to sign in", http.StatusForbidden)
 		return
@@ -47,5 +48,5 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(loginResponse{Token: token, Email: email})
+	json.NewEncoder(w).Encode(loginResponse{Token: token, Email: email, Role: role})
 }

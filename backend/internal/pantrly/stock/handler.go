@@ -209,11 +209,20 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 
 	for i := range items {
 		fig, ok := figures[items[i].ItemID]
-		if !ok || fig.OpeningAtFrom == nil || fig.ClosingAtTo == nil {
+		if !ok || fig.StockAtFrom == nil || fig.StockAtTo == nil || fig.AnchorDate == nil {
 			continue
 		}
-		consumed := *fig.OpeningAtFrom + fig.Purchased - *fig.ClosingAtTo
+		anchorDate, err := time.Parse("2006-01-02", *fig.AnchorDate)
+		if err != nil {
+			continue
+		}
+		days := int(to.Sub(anchorDate).Hours() / 24)
+		if days <= 0 {
+			continue
+		}
+		consumed := *fig.StockAtFrom + fig.Purchased - *fig.StockAtTo
 		items[i].ConsumedInRange = &consumed
+		items[i].RangeDays = &days
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{

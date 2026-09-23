@@ -12,6 +12,7 @@ const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 // this storage is shared across all of /admin.
 const TOKEN_KEY = "attendance_app_token";
 const EMAIL_KEY = "attendance_app_email";
+const ROLE_KEY = "attendance_app_role";
 
 export const AUTH_CHANGE_EVENT = "admin-auth-change";
 
@@ -49,6 +50,23 @@ export function clearStoredEmail() {
   localStorage.removeItem(EMAIL_KEY);
 }
 
+// Accessly role (owner/operations/accounting/""), set at login alongside
+// email — see auth.Claims.Role in the backend for why this is stored
+// rather than fetched, and its "changes take effect on next login"
+// trade-off.
+export function getStoredRole(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(ROLE_KEY) ?? "";
+}
+
+export function setStoredRole(role: string) {
+  localStorage.setItem(ROLE_KEY, role);
+}
+
+export function clearStoredRole() {
+  localStorage.removeItem(ROLE_KEY);
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -58,13 +76,22 @@ export class ApiError extends Error {
 }
 
 /**
- * Fetch helper shared by every admin app. Attaches the bearer token,
- * and on 401 clears the session and redirects to the site-level login page.
+ * Fetch helper shared by every admin app. Attaches the bearer token; on 401
+ * (missing/invalid/expired token) clears the session and redirects to the
+ * site-level login page; on 403 (a valid session that's simply not
+ * permitted for this route — an app/role gate, not a bad token) redirects
+ * to the launcher instead, since the user is still logged in.
+ *
+ * Pass `redirectOnForbidden: false` for calls that intentionally probe a
+ * 403 as a normal outcome (e.g. useLedgerlyAccess/useAccesslyAccess hiding
+ * a nav tab for a role that lacks access) — those must not bounce the user
+ * anywhere, they just want the status to inspect.
  */
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
   unauthorizedRedirect: string = "/admin/login",
+  redirectOnForbidden: boolean = true,
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -84,6 +111,13 @@ export async function apiRequest<T>(
     throw new ApiError(401, "Unauthorized");
   }
 
+  if (res.status === 403 && redirectOnForbidden) {
+    if (typeof window !== "undefined") {
+      window.location.href = `${BASE_PATH}/admin`;
+    }
+    throw new ApiError(403, "Forbidden");
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new ApiError(res.status, text || res.statusText);
@@ -95,7 +129,7 @@ export async function apiRequest<T>(
 
 export const adminApi = {
   googleLogin: (credential: string) =>
-    apiRequest<{ token: string; email: string }>("/api/auth/google", {
+    apiRequest<{ token: string; email: string; role: string }>("/api/auth/google", {
       method: "POST",
       body: JSON.stringify({ credential }),
     }),

@@ -6,13 +6,12 @@ import (
 )
 
 type Config struct {
-	Port                string
-	DatabaseURL         string
-	JWTSecret           string
-	AdminEmail          string
-	GoogleClientID      string
-	AllowedOrigins      []string
-	LedgerlyAdminEmails []string
+	Port           string
+	DatabaseURL    string
+	JWTSecret      string
+	AdminEmail     string
+	GoogleClientID string
+	AllowedOrigins []string
 }
 
 func Load() Config {
@@ -21,19 +20,13 @@ func Load() Config {
 		origins = "http://localhost:3000"
 	}
 
-	var ledgerlyAdmins []string
-	if v := os.Getenv("LEDGERLY_ADMIN_EMAILS"); v != "" {
-		ledgerlyAdmins = strings.Split(v, ",")
-	}
-
 	return Config{
-		Port:                getenv("PORT", "8080"),
-		DatabaseURL:         getenv("DATABASE_URL", "postgres://attendance:attendance@localhost:5432/attendance?sslmode=disable"),
-		JWTSecret:           os.Getenv("JWT_SECRET"), // no insecure default — main.go refuses to boot if empty
-		AdminEmail:          getenv("ADMIN_EMAIL", ""),
-		GoogleClientID:      getenv("GOOGLE_CLIENT_ID", ""),
-		AllowedOrigins:      strings.Split(origins, ","),
-		LedgerlyAdminEmails: ledgerlyAdmins,
+		Port:           getenv("PORT", "8080"),
+		DatabaseURL:    getenv("DATABASE_URL", "postgres://attendance:attendance@localhost:5432/attendance?sslmode=disable"),
+		JWTSecret:      os.Getenv("JWT_SECRET"), // no insecure default — main.go refuses to boot if empty
+		AdminEmail:     getenv("ADMIN_EMAIL", ""),
+		GoogleClientID: getenv("GOOGLE_CLIENT_ID", ""),
+		AllowedOrigins: strings.Split(origins, ","),
 	}
 }
 

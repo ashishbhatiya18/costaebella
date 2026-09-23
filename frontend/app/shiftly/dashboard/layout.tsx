@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/admin/auth-context";
 import { clsx } from "@/lib/admin/clsx";
+import { useAppRoleGuard } from "@/lib/admin/use-app-role-guard";
 
 function ClockIcon({ className }: { className?: string }) {
   return (
@@ -59,10 +60,10 @@ function AdvanceIcon({ className }: { className?: string }) {
 
 const NAV_ITEMS = [
   { href: "/shiftly/dashboard/log-attendance", label: "Log Attendance", shortLabel: "Log", Icon: ClockIcon },
-  { href: "/shiftly/dashboard/employees", label: "Manage Employees", shortLabel: "Team", Icon: UsersIcon },
+  { href: "/shiftly/dashboard/employees", label: "Manage Employees", shortLabel: "Team", Icon: UsersIcon, roles: ["owner"] },
   { href: "/shiftly/dashboard/attendance-summary", label: "Attendance Summary", shortLabel: "Attendance", Icon: CalendarIcon },
   { href: "/shiftly/dashboard/advances", label: "Advances", shortLabel: "Advances", Icon: AdvanceIcon },
-  { href: "/shiftly/dashboard/payout-summary", label: "Payout Summary", shortLabel: "Payout", Icon: PayoutIcon },
+  { href: "/shiftly/dashboard/payout-summary", label: "Payout Summary", shortLabel: "Payout", Icon: PayoutIcon, roles: ["owner", "accounting"] },
 ];
 
 export default function DashboardLayout({
@@ -71,9 +72,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { email, isLoading } = useAuth();
+  const { email, role, isLoading } = useAuth();
+  useAppRoleGuard("shiftly");
 
   if (isLoading) return null;
+
+  // Payout figures are accounting's domain — hide the tab for operations,
+  // mirroring how Ledgerly hides its P&L tab for non-accounting roles.
+  // Real enforcement is server-side (GET /api/shiftly/summary/payout).
+  const navItems = NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-cream text-navy lg:flex-row">
@@ -111,7 +118,7 @@ export default function DashboardLayout({
         </Link>
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
@@ -146,7 +153,7 @@ export default function DashboardLayout({
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-navy/10 bg-white/95 backdrop-blur lg:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = pathname === item.href;
           return (
             <Link

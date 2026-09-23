@@ -5,10 +5,12 @@ import { api } from "@/lib/ledgerly/api";
 
 export type LedgerlyAccessState = "checking" | "denied" | "allowed";
 
-// Probes GET /api/ledgerly/summary/pnl's access gate once per mount. Used
-// both to hide the P&L Summary nav tab from admins who can't use it, and
-// to gate the summary page itself (real enforcement is server-side either
-// way — this is purely so the UI doesn't dangle a link that 403s).
+// Probes GET /api/ledgerly/access once per mount — owner-only on the
+// backend (accessly.RequireOwner). Used to hide the P&L Summary/Tax Export
+// nav tabs (and Menuly/Intel-ly's own gate, see LedgerlyGate) from admins
+// who can't use them, and to gate those pages themselves — real
+// enforcement is server-side either way, this just avoids dangling a link
+// that would 403.
 export function useLedgerlyAccess(): LedgerlyAccessState {
   const [state, setState] = useState<LedgerlyAccessState>("checking");
 

@@ -58,4 +58,9 @@ type ItemStock struct {
 	LowStock        bool     `json:"low_stock"`
 	LastLogDate     *string  `json:"last_log_date"`
 	ConsumedInRange *float64 `json:"consumed_in_range"`
+	// RangeDays is how many days ConsumedInRange actually spans — the
+	// anchor start may be later than the requested `from` if the item's
+	// logging history doesn't go back that far yet, so callers averaging
+	// per week/day should divide by this rather than the requested range.
+	RangeDays *int `json:"range_days"`
 }

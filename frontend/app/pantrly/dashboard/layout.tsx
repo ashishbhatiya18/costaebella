@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/admin/auth-context";
 import { clsx } from "@/lib/admin/clsx";
+import { useAppRoleGuard } from "@/lib/admin/use-app-role-guard";
 
 function ListIcon({ className }: { className?: string }) {
   return (
@@ -54,6 +55,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { email, isLoading } = useAuth();
+  useAppRoleGuard("pantrly");
 
   if (isLoading) return null;
 

@@ -7,6 +7,7 @@ import { usePageTitle } from "@/lib/admin/use-page-title";
 import { useAppRoleGuard } from "@/lib/admin/use-app-role-guard";
 import { api, User } from "@/lib/accessly/api";
 import { UsersTab } from "@/components/accessly/users-tab";
+import { AccessLegend } from "@/components/accessly/access-legend";
 
 export default function AccesslyPage() {
   usePageTitle("Accessly");
@@ -48,6 +49,7 @@ export default function AccesslyPage() {
       </header>
 
       <UsersTab users={users} loading={loading} onChange={load} />
+      <AccessLegend />
     </div>
   );
 }

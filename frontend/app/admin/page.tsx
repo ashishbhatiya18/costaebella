@@ -58,7 +58,12 @@ const APPS: LauncherApp[] = [
 export default function AdminHomePage() {
   usePageTitle("Apps");
   const { email, role, isLoading, logout } = useAuth();
-  const ledgerlyAccess = useLedgerlyAccess();
+  // Menuly/Intel-ly are owner-only (see CLAUDE.md), so the ledgerly access
+  // probe is only meaningful for owners. Skipping it for every other role
+  // avoids an always-403 request blocking the whole launcher (including
+  // unrelated tiles like Shiftly) while that role waits on a probe whose
+  // result can never change their tile set.
+  const ledgerlyAccess = useLedgerlyAccess({ skip: role !== "owner" });
   const apps = APPS.filter((app) => {
     if (app.app === "menuly" || app.app === "intelly") {
       return !app.gated || ledgerlyAccess === "allowed";
@@ -66,11 +71,12 @@ export default function AdminHomePage() {
     return canAccessApp(role, app.app);
   });
 
-  // Wait for both the stored session and the Ledgerly access probe to
-  // settle before rendering tiles — otherwise the grid briefly renders
-  // with gated/role-restricted tiles missing, then re-renders once the
-  // checks resolve, which looks like apps are randomly disappearing.
-  if (isLoading || ledgerlyAccess === "checking") {
+  // Wait for both the stored session and (owners only) the Ledgerly access
+  // probe to settle before rendering tiles — otherwise the grid briefly
+  // renders with gated/role-restricted tiles missing, then re-renders once
+  // the checks resolve, which looks like apps are randomly disappearing.
+  const waitingOnLedgerly = role === "owner" && ledgerlyAccess === "checking";
+  if (isLoading || waitingOnLedgerly) {
     return (
       <div className="mx-auto max-w-3xl px-5 py-16">
         <p className="text-sm text-navy/50">Loading…</p>

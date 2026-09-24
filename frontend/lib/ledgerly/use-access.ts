@@ -11,10 +11,17 @@ export type LedgerlyAccessState = "checking" | "denied" | "allowed";
 // who can't use them, and to gate those pages themselves — real
 // enforcement is server-side either way, this just avoids dangling a link
 // that would 403.
-export function useLedgerlyAccess(): LedgerlyAccessState {
-  const [state, setState] = useState<LedgerlyAccessState>("checking");
+export function useLedgerlyAccess(opts?: { skip?: boolean }): LedgerlyAccessState {
+  const skip = opts?.skip ?? false;
+  const [state, setState] = useState<LedgerlyAccessState>(
+    skip ? "denied" : "checking",
+  );
 
   useEffect(() => {
+    if (skip) {
+      setState("denied");
+      return;
+    }
     let cancelled = false;
     api
       .checkAccess()
@@ -27,7 +34,7 @@ export function useLedgerlyAccess(): LedgerlyAccessState {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [skip]);
 
   return state;
 }

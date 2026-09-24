@@ -100,17 +100,25 @@ func main() {
 	r.Group(func(pr chi.Router) {
 		pr.Use(middleware.RequireAuth(authSvc))
 
-		// Shiftly employee management — owner only. Attendance logging and
-		// the rest of Shiftly below stays open to operations too.
+		// Shiftly employee list/detail — readable by every role that needs
+		// to pick an employee elsewhere (operations logging attendance,
+		// accounting linking a payment), even though only owners manage
+		// employees. Mutations stay owner-only below.
+		pr.Group(func(er chi.Router) {
+			er.Use(accessly.RequireRole(accessuser.RoleOwner, accessuser.RoleOperations, accessuser.RoleAccounting))
+			er.Get("/api/shiftly/employees/", employeeHandler.List)
+			er.Get("/api/shiftly/employees/{id}", employeeHandler.Get)
+		})
+
+		// Shiftly employee management (create/update/delete) — owner only.
+		// Registered as direct routes rather than a Route()/Mount() sub-router:
+		// a mount intercepts every method under its prefix, which would shadow
+		// the read-only GET routes registered above for the same path.
 		pr.Group(func(er chi.Router) {
 			er.Use(accessly.RequireOwner())
-			er.Route("/api/shiftly/employees", func(r chi.Router) {
-				r.Get("/", employeeHandler.List)
-				r.Post("/", employeeHandler.Create)
-				r.Get("/{id}", employeeHandler.Get)
-				r.Put("/{id}", employeeHandler.Update)
-				r.Delete("/{id}", employeeHandler.Delete)
-			})
+			er.Post("/api/shiftly/employees/", employeeHandler.Create)
+			er.Put("/api/shiftly/employees/{id}", employeeHandler.Update)
+			er.Delete("/api/shiftly/employees/{id}", employeeHandler.Delete)
 		})
 
 		// Shiftly — staff attendance/payout, restricted to owners and

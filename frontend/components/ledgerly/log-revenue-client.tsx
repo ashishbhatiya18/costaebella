@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, Sale } from "@/lib/ledgerly/api";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
+import { SplitButton } from "@/components/admin/ui/split-button";
 import { Input, Label } from "@/components/admin/ui/input";
 import { clsx } from "@/lib/admin/clsx";
 import { formatINR } from "@/lib/admin/format";
@@ -35,7 +36,8 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
 
   const [scanning, setScanning] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   async function handleBillUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -153,23 +155,29 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
       <div className="space-y-4">
         <Card className="p-5">
           <form onSubmit={submitSale} className="space-y-4">
-            <div>
+            <div className="relative">
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleBillUpload}
+              />
+              <input
+                ref={galleryInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={handleBillUpload}
               />
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={scanning}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {scanning ? "Scanning bill…" : "Upload bill photo"}
-              </Button>
+              <SplitButton
+                label={scanning ? "Scanning bill…" : "Take bill photo"}
+                onClick={() => cameraInputRef.current?.click()}
+                options={[
+                  { label: "Choose from gallery", onClick: () => galleryInputRef.current?.click() },
+                ]}
+              />
               {scanNotice && <p className="mt-1.5 text-xs text-navy/60">{scanNotice}</p>}
             </div>
 

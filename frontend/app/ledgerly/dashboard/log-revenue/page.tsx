@@ -10,7 +10,14 @@ export default function LogRevenuePage() {
   const names = new Set<string>();
   for (const category of [...menu.coffee, ...menu.food]) {
     for (const item of category.items) {
-      names.add(item.name);
+      if (item.prices) {
+        for (const variant of Object.keys(item.prices)) {
+          const label = variant.charAt(0).toUpperCase() + variant.slice(1);
+          names.add(`${item.name} (${label})`);
+        }
+      } else {
+        names.add(item.name);
+      }
     }
   }
   const menuItems = [...names].sort((a, b) => a.localeCompare(b));

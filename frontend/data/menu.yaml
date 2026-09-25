@@ -242,6 +242,8 @@ food:
     items:
       - name: "Hakka Noodles"
         prices: { veg: 249, egg: 279, chicken: 329 }
+      - name: "Hakka Noodles (Half)"
+        prices: { veg: 199, chicken: 259 }
       - name: "Burnt Garlic Noodles"
         prices: { veg: 269, egg: 299, chicken: 349 }
       - name: "Schezwan Noodles"
@@ -258,6 +260,10 @@ food:
         image: "/images/food/food-burnt-garlic-rice-1.jpg"
       - name: "Schezwan Fried Rice"
         prices: { veg: 279, egg: 309 }
+      - name: "Triple Schezwan Fried Rice"
+        prices: { veg: 309, chicken: 449 }
+      - name: "Triple Schezwan Fried Rice (Half)"
+        prices: { veg: 199 }
 
   - category: "Rice Bowls"
     items:

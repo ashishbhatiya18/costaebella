@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, Sale } from "@/lib/ledgerly/api";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
@@ -8,6 +8,7 @@ import { Input, Label } from "@/components/admin/ui/input";
 import { clsx } from "@/lib/admin/clsx";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { parseBillText } from "@/lib/ledgerly/bill-ocr";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -31,6 +32,48 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [scanning, setScanning] = useState(false);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleBillUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setScanning(true);
+    setScanNotice(null);
+    setError(null);
+    try {
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("eng");
+      try {
+        const {
+          data: { text },
+        } = await worker.recognize(file);
+        const { amountCents, itemNames } = parseBillText(text, menuItems);
+
+        if (amountCents) {
+          setSaleAmount((amountCents / 100).toString());
+        }
+        if (itemNames.length > 0) {
+          setSelectedItems(itemNames);
+        }
+        if (!amountCents && itemNames.length === 0) {
+          setScanNotice("Couldn't read the amount or any dishes off that photo — fill the form in manually.");
+        } else {
+          setScanNotice("Scanned from photo — please check the fields below before submitting.");
+        }
+      } finally {
+        await worker.terminate();
+      }
+    } catch {
+      setScanNotice("Couldn't scan that photo — fill the form in manually.");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function refresh() {
     try {
@@ -110,6 +153,27 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
       <div className="space-y-4">
         <Card className="p-5">
           <form onSubmit={submitSale} className="space-y-4">
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleBillUpload}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={scanning}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {scanning ? "Scanning bill…" : "Upload bill photo"}
+              </Button>
+              {scanNotice && <p className="mt-1.5 text-xs text-navy/60">{scanNotice}</p>}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="sale-amount">Amount (₹)</Label>

@@ -186,6 +186,8 @@ food:
         prices: { veg: 279, chicken: 349 }
       - name: "Chinese Chili"
         prices: { veg: 269, chicken: 379 }
+      - name: "Paneer Chilli"
+        prices: { veg: 269 }
       - name: "Garlic Butter Fry"
         special: "chef's special"
         note: "veg option is mushroom"

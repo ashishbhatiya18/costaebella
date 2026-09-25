@@ -158,7 +158,6 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
                 onChange={handleBillUpload}
               />

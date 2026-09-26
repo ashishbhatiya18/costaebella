@@ -22,6 +22,24 @@ function toCents(value: string) {
   return isNaN(n) ? 0 : Math.round(n * 100);
 }
 
+// One row per item name in `item_names` records one unit sold — so a
+// quantity of N is submitted as N repeated entries of the same name.
+function expandItemNames(items: Record<string, number>): string[] {
+  return Object.entries(items).flatMap(([name, qty]) => Array(qty).fill(name));
+}
+
+function itemsSummaryText(items: Record<string, number>): string {
+  return Object.entries(items)
+    .map(([name, qty]) => `${name} x${qty}`)
+    .join(", ");
+}
+
+function groupItemNames(names: string[]): { name: string; quantity: number }[] {
+  const counts = new Map<string, number>();
+  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
+  return [...counts.entries()].map(([name, quantity]) => ({ name, quantity }));
+}
+
 export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   usePageTitle("Log Income");
   const [date, setDate] = useState(today());
@@ -29,7 +47,7 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   const [saleAmount, setSaleAmount] = useState("");
   const [salePaymentMethod, setSalePaymentMethod] = useState("cash");
   const [saleNotes, setSaleNotes] = useState("");
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
   const [itemSearch, setItemSearch] = useState("");
   const [todaysSales, setTodaysSales] = useState<Sale[]>([]);
 
@@ -56,15 +74,15 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
         const {
           data: { text },
         } = await worker.recognize(file);
-        const { amountCents, itemNames } = parseBillText(text, menuItems);
+        const { amountCents, items } = parseBillText(text, menuItems);
 
         if (amountCents) {
           setSaleAmount((amountCents / 100).toString());
         }
-        if (itemNames.length > 0) {
-          setSelectedItems(itemNames);
+        if (items.length > 0) {
+          setSelectedItems(Object.fromEntries(items.map((it) => [it.name, it.quantity])));
         }
-        if (!amountCents && itemNames.length === 0) {
+        if (!amountCents && items.length === 0) {
           setScanNotice("Couldn't read the amount or any dishes off that photo — fill the form in manually.");
         } else {
           setScanNotice("Scanned from photo — please check the fields below before submitting.");
@@ -99,10 +117,26 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
     return menuItems.filter((name) => name.toLowerCase().includes(q));
   }, [menuItems, itemSearch]);
 
-  function toggleItem(name: string) {
-    setSelectedItems((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
+  function addItem(name: string) {
+    setSelectedItems((prev) => ({ ...prev, [name]: (prev[name] ?? 0) + 1 }));
+  }
+
+  function changeItemQty(name: string, delta: number) {
+    setSelectedItems((prev) => {
+      const nextQty = (prev[name] ?? 0) + delta;
+      if (nextQty <= 0) {
+        const { [name]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [name]: nextQty };
+    });
+  }
+
+  function removeItem(name: string) {
+    setSelectedItems((prev) => {
+      const { [name]: _removed, ...rest } = prev;
+      return rest;
+    });
   }
 
   async function submitSale(e: React.FormEvent) {
@@ -112,23 +146,26 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
       setError("Enter a valid amount.");
       return;
     }
-    if (selectedItems.length === 0) {
+    const itemNames = expandItemNames(selectedItems);
+    if (itemNames.length === 0) {
       setError("Select at least one dish.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
+      const summary = itemsSummaryText(selectedItems);
+      const notes = saleNotes.trim() ? `${summary} — ${saleNotes.trim()}` : summary;
       await api.logSale({
         sale_date: date,
         amount_cents: amountCents,
         payment_method: salePaymentMethod,
-        notes: saleNotes,
-        item_names: selectedItems,
+        notes,
+        item_names: itemNames,
       });
       setSaleAmount("");
       setSaleNotes("");
-      setSelectedItems([]);
+      setSelectedItems({});
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to log sale.");
@@ -224,18 +261,38 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
 
             <div>
               <Label htmlFor="sale-item-search">Dish(es) sold</Label>
-              {selectedItems.length > 0 && (
+              {Object.keys(selectedItems).length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1.5">
-                  {selectedItems.map((name) => (
-                    <button
+                  {Object.entries(selectedItems).map(([name, qty]) => (
+                    <div
                       key={name}
-                      type="button"
-                      onClick={() => toggleItem(name)}
-                      className="flex items-center gap-1 rounded-full bg-teal/15 px-2.5 py-1 text-xs font-medium text-teal hover:bg-teal/25"
+                      className="flex items-center gap-1.5 rounded-full bg-teal/15 py-1 pl-2.5 pr-1.5 text-xs font-medium text-teal"
                     >
-                      {name}
-                      <span aria-hidden>×</span>
-                    </button>
+                      <button
+                        type="button"
+                        title="Left-click to add one, right-click to remove one, or scroll"
+                        onClick={() => changeItemQty(name, 1)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          changeItemQty(name, -1);
+                        }}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          changeItemQty(name, e.deltaY < 0 ? 1 : -1);
+                        }}
+                        className="select-none"
+                      >
+                        {name} × {qty}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(name)}
+                        aria-label={`Remove ${name}`}
+                        className="text-teal/70 hover:text-teal"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -248,13 +305,13 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
               {itemSearch.trim() && (
                 <div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
                   {filteredItems.slice(0, 30).map((name) => {
-                    const active = selectedItems.includes(name);
+                    const active = name in selectedItems;
                     return (
                       <button
                         key={name}
                         type="button"
                         onClick={() => {
-                          toggleItem(name);
+                          addItem(name);
                           setItemSearch("");
                         }}
                         className={clsx(
@@ -279,7 +336,7 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
             </div>
             {error && <p className="text-sm text-coral">{error}</p>}
             <div className="flex justify-end">
-              <Button type="submit" disabled={submitting || selectedItems.length === 0}>
+              <Button type="submit" disabled={submitting || Object.keys(selectedItems).length === 0}>
                 Log sale
               </Button>
             </div>
@@ -314,12 +371,13 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                   </div>
                   {s.item_names?.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                      {s.item_names.map((name) => (
+                      {groupItemNames(s.item_names).map(({ name, quantity }) => (
                         <span
                           key={name}
                           className="rounded-full bg-teal/10 px-2 py-0.5 text-xs font-medium text-teal"
                         >
                           {name}
+                          {quantity > 1 && ` ×${quantity}`}
                         </span>
                       ))}
                     </div>

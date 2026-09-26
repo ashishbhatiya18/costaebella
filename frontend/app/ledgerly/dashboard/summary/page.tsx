@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, PnlSummary } from "@/lib/ledgerly/api";
+import { api, PnlSummary, PnlTrendPoint } from "@/lib/ledgerly/api";
 import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
 import { Card } from "@/components/admin/ui/card";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { PnlTrendChart } from "@/components/ledgerly/pnl-trend-chart";
+import { PnlSankey } from "@/components/ledgerly/pnl-sankey";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+
+const TREND_PERIODS = 8;
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -17,14 +21,20 @@ export default function PnlSummaryPage() {
   const access = useLedgerlyAccess();
   const [range, setRange] = useState<"week" | "month">("week");
   const [summary, setSummary] = useState<PnlSummary | null>(null);
+  const [trend, setTrend] = useState<PnlTrendPoint[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (access !== "allowed") return;
     setLoading(true);
-    api
-      .pnlSummary(range, today())
-      .then((data) => setSummary({ ...data, pantrly_purchases: data.pantrly_purchases ?? [] }))
+    Promise.all([
+      api.pnlSummary(range, today()),
+      api.pnlTrend(range, TREND_PERIODS),
+    ])
+      .then(([summaryData, trendData]) => {
+        setSummary({ ...summaryData, pantrly_purchases: summaryData.pantrly_purchases ?? [] });
+        setTrend(trendData.periods ?? []);
+      })
       .finally(() => setLoading(false));
   }, [access, range]);
 
@@ -82,7 +92,7 @@ export default function PnlSummaryPage() {
               <p className="mt-1 text-xs text-navy/50">
                 {formatINR(summary.payments_cents)} expenses + {formatINR(summary.purchases_cents)} Pantrly deliveries
                 {" + "}
-                {formatINR(summary.advances_cents)} advances
+                {formatINR(summary.advances_cents)} advances + {formatINR(summary.salary_cents)} salary accrued
               </p>
             </Card>
             <Card className="p-5">
@@ -97,35 +107,9 @@ export default function PnlSummaryPage() {
             </Card>
           </div>
 
-          {summary.pantrly_purchases.length > 0 && (
-            <Card className="mt-4 overflow-x-auto">
-              <div className="border-b border-navy/10 px-5 py-3 text-sm font-medium text-navy">
-                Pantrly deliveries in range
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-navy/10 text-left text-xs uppercase tracking-wide text-navy/50">
-                    <th className="px-5 py-3">Date</th>
-                    <th className="px-5 py-3">Item</th>
-                    <th className="px-5 py-3">Quantity</th>
-                    <th className="px-5 py-3">Cost</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.pantrly_purchases.map((p) => (
-                    <tr key={p.id} className="border-b border-navy/5 last:border-0">
-                      <td className="px-5 py-3 text-navy/70">{p.purchase_date}</td>
-                      <td className="px-5 py-3 text-navy">{p.item_name}</td>
-                      <td className="px-5 py-3 text-navy/70">{p.quantity}</td>
-                      <td className="px-5 py-3 font-medium text-navy">
-                        {p.cost_cents != null ? formatINR(p.cost_cents) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
+          <PnlSankey summary={summary} />
+
+          {trend && trend.length > 0 && <PnlTrendChart points={trend} rangeType={range} />}
         </>
       )}
     </div>

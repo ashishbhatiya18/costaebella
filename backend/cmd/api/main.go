@@ -78,7 +78,7 @@ func main() {
 	wastageHandler := wastage.NewHandler(wastageRepo)
 	revenueHandler := revenue.NewHandler(revenueRepo)
 	paymentHandler := payment.NewHandler(paymentRepo)
-	pnlHandler := pnl.NewHandler(revenueRepo, paymentRepo, stockRepo, advanceRepo)
+	pnlHandler := pnl.NewHandler(revenueRepo, paymentRepo, stockRepo, advanceRepo, employeeRepo, attendanceRepo)
 	visibilityHandler := visibility.NewHandler(visibilityRepo)
 	compositionHandler := composition.NewHandler(compositionRepo)
 
@@ -215,6 +215,7 @@ func main() {
 					w.WriteHeader(http.StatusNoContent)
 				})
 				gr.Get("/api/ledgerly/summary/pnl", pnlHandler.Summary)
+				gr.Get("/api/ledgerly/summary/pnl/trend", pnlHandler.Trend)
 
 				gr.Get("/api/menuly/visibility", visibilityHandler.List)
 				gr.Put("/api/menuly/visibility", visibilityHandler.Set)

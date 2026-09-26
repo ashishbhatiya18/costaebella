@@ -1,6 +1,7 @@
 package payout
 
 import (
+	"context"
 	"math"
 	"time"
 
@@ -376,4 +377,43 @@ func ComputeHourlyPayout(e employee.Employee, logs []attendance.Log, monthStart,
 	base.NetPayoutCents = net
 	base.DailyBreakdown = breakdown
 	return base
+}
+
+// RangeLaborCostTotal sums gross labor cost (the same day-level figures
+// LaborCostSummary reports) across all employees for [from, to] — used by
+// Ledgerly's P&L to fold accrued-but-maybe-unpaid salary into expenses.
+// Internally runs ComputeHourlyPayout once per month the range touches (so
+// each day's cost stays consistent with the real payout run), then clips
+// each employee's daily breakdown to the requested window before summing.
+func RangeLaborCostTotal(ctx context.Context, employees *employee.Repo, attendances *attendance.Repo, from, to time.Time) (int64, error) {
+	if to.Before(from) {
+		return 0, nil
+	}
+
+	allEmployees, err := employees.List(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var total int64
+	for monthStart := time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC); !monthStart.After(to); monthStart = monthStart.AddDate(0, 1, 0) {
+		monthEnd := monthStart.AddDate(0, 1, -1)
+
+		logs, err := attendances.ListRange(ctx, "", monthStart.Format("2006-01-02"), monthEnd.Format("2006-01-02"))
+		if err != nil {
+			return 0, err
+		}
+
+		for _, e := range allEmployees {
+			payout := ComputeHourlyPayout(e, logs, monthStart, monthEnd, 0)
+			for _, dc := range payout.DailyBreakdown {
+				d, err := time.Parse("2006-01-02", dc.Date)
+				if err != nil || d.Before(from) || d.After(to) {
+					continue
+				}
+				total += dc.DayPayCents
+			}
+		}
+	}
+	return total, nil
 }

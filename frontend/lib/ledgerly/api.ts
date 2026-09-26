@@ -60,6 +60,7 @@ export type PnlSummary = {
   payments_cents: number;
   purchases_cents: number;
   advances_cents: number;
+  salary_cents: number;
   expenses_cents: number;
   profit_cents: number;
   pantrly_purchases: {
@@ -70,6 +71,14 @@ export type PnlSummary = {
     purchase_date: string;
     notes: string;
   }[];
+};
+
+export type PnlTrendPoint = {
+  from: string;
+  to: string;
+  revenue_cents: number;
+  expenses_cents: number;
+  profit_cents: number;
 };
 
 export const api = {
@@ -123,4 +132,9 @@ export const api = {
 
   pnlSummary: (range: "week" | "month", anchorDate: string) =>
     request<PnlSummary>(`/api/ledgerly/summary/pnl?range=${range}&anchor_date=${anchorDate}`),
+
+  pnlTrend: (range: "week" | "month", periods: number) =>
+    request<{ range: string; periods: PnlTrendPoint[] }>(
+      `/api/ledgerly/summary/pnl/trend?range=${range}&periods=${periods}`,
+    ),
 };

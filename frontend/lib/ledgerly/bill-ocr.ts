@@ -80,9 +80,24 @@ function detectVariant(window: string): string | null {
   return null;
 }
 
-export function extractMenuItems(text: string, menuItems: string[]): string[] {
-  const lowerText = text.toLowerCase();
+// Line-item receipts are typically "Name  Rate  Qty  Amt" (3 numbers) or
+// "Name  Rate  Amt" (2 numbers, no printed quantity). When exactly 3 numbers
+// are present, the middle one is the quantity; otherwise assume 1.
+function detectQuantity(line: string): number {
+  const numbers = [...line.matchAll(NUMBER_REGEX)].map((m) => m[0]);
+  if (numbers.length === 3) {
+    const qty = Math.round(Number(numbers[1].replace(/,/g, "")));
+    if (Number.isFinite(qty) && qty > 0 && qty < 100) return qty;
+  }
+  return 1;
+}
 
+export interface ScannedItem {
+  name: string;
+  quantity: number;
+}
+
+export function extractMenuItems(text: string, menuItems: string[]): ScannedItem[] {
   const entriesByBase = new Map<string, MenuEntry[]>();
   for (const item of menuItems) {
     const entry = parseMenuItem(item);
@@ -92,46 +107,45 @@ export function extractMenuItems(text: string, menuItems: string[]): string[] {
   }
 
   const bases = [...entriesByBase.keys()].filter((base) => base.length >= 3);
+  const results = new Map<string, number>();
 
-  // Find bases actually present in the text, keeping the match position.
-  const found: { base: string; index: number }[] = [];
-  for (const base of bases) {
-    const index = lowerText.indexOf(base);
-    if (index !== -1) found.push({ base, index });
-  }
+  for (const rawLine of text.split("\n")) {
+    const lowerLine = rawLine.toLowerCase();
+    if (!lowerLine.trim()) continue;
 
-  // Drop matches that are just a substring of a longer match (e.g. "Fried
-  // Rice" matching inside "Schezwan Fried Rice") so we don't double-count.
-  const longerBases = found.map((f) => f.base).sort((a, b) => b.length - a.length);
-  const kept = found.filter(
-    (f) => !longerBases.some((other) => other !== f.base && other.includes(f.base)),
-  );
+    const found = bases.filter((base) => lowerLine.includes(base));
+    if (found.length === 0) continue;
 
-  const matched: string[] = [];
-  for (const { base, index } of kept) {
-    const entries = entriesByBase.get(base)!;
+    // Drop matches that are just a substring of a longer match on the same
+    // line (e.g. "Fried Rice" inside "Schezwan Fried Rice").
+    const kept = found.filter((base) => !found.some((other) => other !== base && other.includes(base)));
 
-    if (entries.length === 1) {
-      matched.push(entries[0].fullName);
-      continue;
+    const quantity = detectQuantity(rawLine);
+
+    for (const base of kept) {
+      const entries = entriesByBase.get(base)!;
+
+      let fullName: string | undefined;
+      if (entries.length === 1) {
+        fullName = entries[0].fullName;
+      } else {
+        const variantKey = detectVariant(lowerLine);
+        fullName = variantKey ? entries.find((e) => e.variantKey === variantKey)?.fullName : undefined;
+        // Ambiguous (multiple variants, no keyword match) — skip rather than guess wrong.
+      }
+
+      if (fullName) {
+        results.set(fullName, (results.get(fullName) ?? 0) + quantity);
+      }
     }
-
-    const windowStart = Math.max(0, index - 15);
-    const windowEnd = Math.min(lowerText.length, index + base.length + 15);
-    const window = lowerText.slice(windowStart, windowEnd);
-    const variantKey = detectVariant(window);
-
-    const entry = variantKey ? entries.find((e) => e.variantKey === variantKey) : undefined;
-    if (entry) matched.push(entry.fullName);
-    // Ambiguous (multiple variants, no keyword match) — skip rather than guess wrong.
   }
 
-  return matched;
+  return [...results.entries()].map(([name, quantity]) => ({ name, quantity }));
 }
 
 export function parseBillText(text: string, menuItems: string[]) {
   return {
     amountCents: extractAmountCents(text),
-    itemNames: extractMenuItems(text, menuItems),
+    items: extractMenuItems(text, menuItems),
   };
 }

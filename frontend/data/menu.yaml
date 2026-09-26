@@ -173,8 +173,12 @@ food:
         prices: { prawns: 549 }
       - name: "Recheado Paneer Skewers"
         prices: { veg: 329 }
+      - name: "Recheado Chicken Skewers"
+        prices: { chicken: 449 }
       - name: "Goan Potato Chops"
         prices: { veg: 279 }
+      - name: "Veg Poi Sliders"
+        prices: { veg: 399 }
 
   - category: "Chinese Starters"
     items:
@@ -205,6 +209,8 @@ food:
         prices: { veg: 229 }
       - name: "Chorizo Cheese Fries"
         prices: { chicken: 349 }
+      - name: "Salted Fries"
+        prices: { veg: 179 }
 
   - category: "Pizza (10 inches)"
     items:
@@ -229,7 +235,9 @@ food:
       - name: "Xacuti Pasta"
         prices: { veg: 399, chicken: 499, prawns: 547 }
       - name: "Balchao Pasta"
-        prices: { chicken: 479, prawns: 579 }
+        prices: { veg: 399, chicken: 479, prawns: 579 }
+      - name: "Alfredo Pasta"
+        prices: { veg: 349 }
 
   - category: "House Dips (45-60g)"
     items:
@@ -268,11 +276,13 @@ food:
         prices: { veg: 309, chicken: 449 }
       - name: "Triple Schezwan Fried Rice (Half)"
         prices: { veg: 199 }
+      - name: "Jasmine Rice"
+        price: 189
 
   - category: "Rice Bowls"
     items:
       - name: "Cafreal Rice Bowl"
-        prices: { veg: 379, chicken: 499 }
+        prices: { veg: 379, chicken: 499, fish: 499 }
       - name: "Curry Rice"
         prices: { veg: 379, chicken: 479, prawns: 647, fish: 499 }
       - name: "Balchao Rice Bowl"
@@ -287,6 +297,21 @@ food:
         price: 249
       - name: "Chocolate Churros"
         price: 279
+
+  - category: "Add-ons"
+    items:
+      - name: "Extra Gravy"
+        price: 99
+      - name: "Extra Cheese"
+        price: 20
+      - name: "Additional Vegies"
+        price: 30
+      - name: "Fried Egg"
+        price: 20
+      - name: "Boiled Egg"
+        price: 25
+      - name: "Egg Omelette"
+        price: 35
 
 # Original menu images, shown alongside the structured data above.
 images:

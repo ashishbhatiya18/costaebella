@@ -201,6 +201,7 @@ func main() {
 			})
 			lr.Post("/api/ledgerly/revenue/sales", revenueHandler.LogSale)
 			lr.Get("/api/ledgerly/revenue/sales", revenueHandler.ListSales)
+			lr.Delete("/api/ledgerly/revenue/sales/{id}", revenueHandler.DeleteSale)
 
 			// Ledgerly P&L summary, and the whole of Menuly/Intel-ly —
 			// owner-only, narrower than the owner/accounting role check

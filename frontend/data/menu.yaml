@@ -152,6 +152,8 @@ coffee:
       - name: "Fresh Lime Soda"
         price: 190
         description: "Classic lime soda with a pinch of salt and a pinch of masala. Simple, crisp and perfect for any time."
+      - name: "Mineral Water"
+        price: 20
 
 food:
   - category: "To Begin"

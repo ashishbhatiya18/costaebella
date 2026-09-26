@@ -5,6 +5,8 @@ import { api, ApiError, Sale } from "@/lib/ledgerly/api";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { SplitButton } from "@/components/admin/ui/split-button";
+import { IconButton } from "@/components/admin/ui/icon-button";
+import { TrashIcon } from "@/components/admin/ui/icons";
 import { Input, Label } from "@/components/admin/ui/input";
 import { clsx } from "@/lib/admin/clsx";
 import { formatINR } from "@/lib/admin/format";
@@ -136,6 +138,16 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   }
 
   const salesTotal = todaysSales.reduce((sum, s) => sum + s.amount_cents, 0);
+
+  async function handleDeleteSale(id: string) {
+    if (!confirm("Delete this sale? This cannot be undone.")) return;
+    try {
+      await api.deleteSale(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete sale.");
+    }
+  }
 
   return (
     <div>
@@ -289,7 +301,16 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                     <span className="text-navy/70">
                       {s.payment_method} {s.notes && `— ${s.notes}`}
                     </span>
-                    <span className="font-medium text-navy">{formatINR(s.amount_cents)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-navy">{formatINR(s.amount_cents)}</span>
+                      <IconButton
+                        variant="danger"
+                        onClick={() => handleDeleteSale(s.id)}
+                        aria-label="Delete sale"
+                      >
+                        <TrashIcon />
+                      </IconButton>
+                    </div>
                   </div>
                   {s.item_names?.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">

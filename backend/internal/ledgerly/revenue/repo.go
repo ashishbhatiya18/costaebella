@@ -2,11 +2,14 @@ package revenue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var errSaleNotFound = errors.New("sale not found")
 
 type Repo struct {
 	pool *pgxpool.Pool
@@ -48,6 +51,17 @@ func (r *Repo) InsertSale(ctx context.Context, req SaleRequest, loggedBy string)
 		return nil, fmt.Errorf("commit insert sale: %w", err)
 	}
 	return &s, nil
+}
+
+func (r *Repo) DeleteSale(ctx context.Context, id string) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM ledgerly_sales WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete sale: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return errSaleNotFound
+	}
+	return nil
 }
 
 func (r *Repo) ListSales(ctx context.Context, from, to string) ([]Sale, error) {

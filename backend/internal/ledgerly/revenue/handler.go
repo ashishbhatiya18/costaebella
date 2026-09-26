@@ -2,9 +2,12 @@ package revenue
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"attendance-app/costaebella-backend/internal/middleware"
 )
@@ -66,6 +69,20 @@ func (h *Handler) ListSales(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sales)
+}
+
+// DeleteSale handles DELETE /api/ledgerly/revenue/sales/{id}
+func (h *Handler) DeleteSale(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.repo.DeleteSale(r.Context(), id); err != nil {
+		if errors.Is(err, errSaleNotFound) {
+			http.Error(w, "sale not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to delete sale", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

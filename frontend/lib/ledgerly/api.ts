@@ -97,6 +97,9 @@ export const api = {
     return request<Sale[]>(`/api/ledgerly/revenue/sales?${q.toString()}`);
   },
 
+  deleteSale: (id: string) =>
+    request<void>(`/api/ledgerly/revenue/sales/${id}`, { method: "DELETE" }),
+
   listPayments: (params: { category?: string; from: string; to: string }) => {
     const q = new URLSearchParams({ from: params.from, to: params.to });
     if (params.category) q.set("category", params.category);

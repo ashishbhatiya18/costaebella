@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, Item, Purchase, Supplier } from "@/lib/pantrly/api";
+import { api, Item, ItemStock, Purchase, Supplier } from "@/lib/pantrly/api";
 import { Card } from "@/components/admin/ui/card";
 import { Input } from "@/components/admin/ui/input";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
@@ -73,6 +73,14 @@ type Row = {
   changePct: number | null;
   // Some month in range has deliveries priced too far apart to share a unit.
   mixedUnits: boolean;
+  // How much is used in a month, in the item's unit: from stock counts
+  // (counted consumption over the window, scaled to 30 days) when the item
+  // is counted, else the average bought per month as an estimate.
+  monthlyUse: number | null;
+  monthlyUseSource: "counts" | "deliveries" | null;
+  // What the latest rate change costs (or saves) per month at that usage:
+  // monthly use × (latest month's rate − previous month's rate).
+  impactPerMonth: number | null;
   latest: Purchase;
   latestSupplier: string | null;
 };
@@ -100,6 +108,12 @@ function formatRate(rupees: number) {
   });
 }
 
+function formatQty(qty: number) {
+  return qty.toLocaleString("en-IN", {
+    maximumFractionDigits: qty < 10 ? 2 : qty < 100 ? 1 : 0,
+  });
+}
+
 function cleanUnit(unit: string) {
   return unit.trim() || "unit";
 }
@@ -113,6 +127,7 @@ export default function RateCardPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [consumption, setConsumption] = useState<ItemStock[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -126,6 +141,9 @@ export default function RateCardPage() {
 
   const from = monthStarts[0];
   const to = periodBounds("month", anchor).to;
+  // Consumption can't extend past today.
+  const today = todayStr();
+  const usageTo = to > today ? today : to;
 
   useEffect(() => {
     let cancelled = false;
@@ -133,12 +151,16 @@ export default function RateCardPage() {
       api.listPurchases({ from, to }),
       api.listItems(),
       api.listSuppliers(),
+      // Counted consumption per item over the window (stock counts plus
+      // deliveries in between) — the basis for "Monthly use".
+      api.stockSummaryRange(from, usageTo).catch(() => null),
     ])
-      .then(([purchasesData, itemsData, suppliersData]) => {
+      .then(([purchasesData, itemsData, suppliersData, usageData]) => {
         if (cancelled) return;
         setPurchases(purchasesData ?? []);
         setItems(itemsData ?? []);
         setSuppliers(suppliersData ?? []);
+        setConsumption(usageData?.items ?? []);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -146,7 +168,7 @@ export default function RateCardPage() {
     return () => {
       cancelled = true;
     };
-  }, [from, to]);
+  }, [from, to, usageTo]);
 
   const emergencySupplierIds = useMemo(
     () => new Set(suppliers.filter((s) => s.is_emergency).map((s) => s.id)),
@@ -159,6 +181,13 @@ export default function RateCardPage() {
     const itemById = new Map(items.map((i) => [i.id, i]));
     const supplierById = new Map(suppliers.map((s) => [s.id, s.name.trim()]));
     const monthIndex = new Map(monthStarts.map((m, i) => [m.slice(0, 7), i]));
+    const usageByItem = new Map(consumption.map((c) => [c.item_id, c]));
+    // Index of the latest month shown that has started (for averaging
+    // deliveries per month without counting future months).
+    const currentMonthIdx = Math.min(
+      monthStarts.length - 1,
+      monthIndex.get(usageTo.slice(0, 7)) ?? monthStarts.length - 1,
+    );
 
     const byItem = new Map<string, Purchase[]>();
     for (const p of purchases) {
@@ -206,11 +235,39 @@ export default function RateCardPage() {
 
       const withData = months.map((m, i) => (m ? i : -1)).filter((i) => i >= 0);
       let changePct: number | null = null;
+      let rateDelta: number | null = null;
       if (withData.length >= 2) {
         const last = months[withData[withData.length - 1]]!;
         const prev = months[withData[withData.length - 2]]!;
         changePct = (last.rate / prev.rate - 1) * 100;
+        rateDelta = last.rate - prev.rate;
       }
+
+      // Monthly use: counted consumption when the item has stock counts
+      // spanning the window, else average bought per month since the first
+      // delivery in the window (up to the current month).
+      let monthlyUse: number | null = null;
+      let monthlyUseSource: Row["monthlyUseSource"] = null;
+      const counted = usageByItem.get(itemId);
+      if (
+        counted &&
+        counted.consumed_in_range != null &&
+        counted.range_days &&
+        counted.range_days > 0
+      ) {
+        monthlyUse = (counted.consumed_in_range / counted.range_days) * 30;
+        monthlyUseSource = "counts";
+      } else if (withData.length > 0) {
+        const lastIdx = Math.max(
+          withData[withData.length - 1],
+          currentMonthIdx,
+        );
+        const span = lastIdx - withData[0] + 1;
+        monthlyUse = months.reduce((sum, m) => sum + (m?.qty ?? 0), 0) / span;
+        monthlyUseSource = "deliveries";
+      }
+      const impactPerMonth =
+        rateDelta != null && monthlyUse != null ? rateDelta * monthlyUse : null;
 
       const latest = list.reduce((a, b) =>
         b.purchase_date > a.purchase_date ||
@@ -226,6 +283,9 @@ export default function RateCardPage() {
         months,
         changePct,
         mixedUnits,
+        monthlyUse,
+        monthlyUseSource,
+        impactPerMonth,
         latest,
         latestSupplier: latest.supplier_id
           ? (supplierById.get(latest.supplier_id) ?? null)
@@ -243,7 +303,15 @@ export default function RateCardPage() {
       return a.item.name.trim().localeCompare(b.item.name.trim());
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [purchases, items, suppliers, monthStarts, emergencySupplierIds]);
+  }, [
+    purchases,
+    items,
+    suppliers,
+    monthStarts,
+    emergencySupplierIds,
+    consumption,
+    usageTo,
+  ]);
 
   const emergencyBuys: EmergencyBuy[] = useMemo(() => {
     const itemById = new Map(items.map((i) => [i.id, i]));
@@ -332,6 +400,9 @@ export default function RateCardPage() {
         months: monthStarts.map(() => null),
         changePct: null,
         mixedUnits: false,
+        monthlyUse: null,
+        monthlyUseSource: null,
+        impactPerMonth: null,
         latest: e.purchase,
         latestSupplier: e.supplier || null,
       });
@@ -371,7 +442,9 @@ export default function RateCardPage() {
             flagged to check the entry instead. Emergency buys (suppliers marked
             emergency, e.g. Blinkit) are kept out of the rates and shown in
             coral under the month they were bought, with the premium paid over
-            the regular rate.
+            the regular rate. Monthly use comes from stock counts (or, for items
+            not counted, the average bought per month), and ≈ ₹/month under a
+            change is what that rate change costs at that usage.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -398,7 +471,12 @@ export default function RateCardPage() {
             {hikes
               .slice(0, 5)
               .map(
-                (r) => `${r.item.name.trim()} (+${Math.round(r.changePct!)}%)`,
+                (r) =>
+                  `${r.item.name.trim()} (+${Math.round(r.changePct!)}%${
+                    r.impactPerMonth != null && r.impactPerMonth >= 1
+                      ? `, ≈ +${formatRate(r.impactPerMonth)}/month`
+                      : ""
+                  })`,
               )
               .join(", ")}
             {hikes.length > 5 ? `, and ${hikes.length - 5} more` : ""}
@@ -483,6 +561,9 @@ export default function RateCardPage() {
                   </th>
                 ))}
                 <th className="whitespace-nowrap px-4 py-3 text-right">
+                  Monthly use
+                </th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">
                   Change
                 </th>
                 <th className="whitespace-nowrap px-4 py-3">Last delivery</th>
@@ -551,6 +632,31 @@ export default function RateCardPage() {
                         </td>
                       );
                     })}
+                    <td
+                      className="whitespace-nowrap px-4 py-3 text-right tabular-nums"
+                      title={
+                        r.monthlyUseSource === "counts"
+                          ? "From stock counts over this period, scaled to 30 days"
+                          : r.monthlyUseSource === "deliveries"
+                            ? "Estimate: average bought per month (this item has no stock counts in this period)"
+                            : undefined
+                      }
+                    >
+                      {r.monthlyUse == null ? (
+                        <span className="text-navy/30">—</span>
+                      ) : (
+                        <>
+                          <div className="text-navy">
+                            {formatQty(r.monthlyUse)} {r.unit}
+                          </div>
+                          <div className="text-xs text-navy/40">
+                            {r.monthlyUseSource === "counts"
+                              ? "counted"
+                              : "≈ bought"}
+                          </div>
+                        </>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                       {r.changePct == null ? (
                         <span className="text-navy/30">—</span>
@@ -571,6 +677,20 @@ export default function RateCardPage() {
                           {Math.round(r.changePct)}%
                         </span>
                       )}
+                      {!suspect &&
+                        r.impactPerMonth != null &&
+                        Math.abs(r.impactPerMonth) >= 1 && (
+                          <div
+                            className={clsx(
+                              "text-xs",
+                              r.impactPerMonth > 0 ? "text-coral" : "text-teal",
+                            )}
+                            title="Latest rate change × monthly use"
+                          >
+                            ≈ {r.impactPerMonth > 0 ? "+" : "−"}
+                            {formatRate(Math.abs(r.impactPerMonth))}/month
+                          </div>
+                        )}
                       {hike && (
                         <div className="mt-1">
                           <span className="rounded-full bg-coral/10 px-2 py-0.5 text-xs font-medium text-coral">

@@ -8,40 +8,16 @@ import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
 import { formatINR } from "@/lib/admin/format";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function toDateStr(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
-// Mirrors the backend's week/month bucketing (Stock Summary's rangeBounds)
-// so "this week"/"this month" mean the same thing across Pantrly.
-function rangeBounds(filter: "day" | "week" | "month", anchorDate: string): { from: string; to: string } {
-  const anchor = new Date(anchorDate + "T00:00:00");
-  if (filter === "day") {
-    return { from: anchorDate, to: anchorDate };
-  }
-  if (filter === "week") {
-    const offset = (anchor.getDay() + 6) % 7;
-    const start = new Date(anchor);
-    start.setDate(start.getDate() - offset);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return { from: toDateStr(start), to: toDateStr(end) };
-  }
-  const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
-  return { from: toDateStr(start), to: toDateStr(end) };
-}
+// Shared Monday-start week/month bucketing — mirrors the backend's
+// rangeBounds so "this week"/"this month" mean the same thing everywhere.
+import { periodBounds, todayStr } from "@/lib/admin/period";
 
 export default function DeliveriesPage() {
   usePageTitle("Past Deliveries");
   const [filter, setFilter] = useState<"day" | "week" | "month">("week");
-  const [anchorDate, setAnchorDate] = useState(today());
+  const [anchorDate, setAnchorDate] = useState(todayStr());
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -49,7 +25,7 @@ export default function DeliveriesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const { from, to } = useMemo(() => rangeBounds(filter, anchorDate), [filter, anchorDate]);
+  const { from, to } = useMemo(() => periodBounds(filter, anchorDate), [filter, anchorDate]);
 
   async function load() {
     setLoading(true);
@@ -110,10 +86,12 @@ export default function DeliveriesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type={filter} anchor={anchorDate} onChange={setAnchorDate} />
           <Input
             type="date"
             value={anchorDate}
-            onChange={(e) => setAnchorDate(e.target.value)}
+            max={todayStr()}
+            onChange={(e) => e.target.value && setAnchorDate(e.target.value)}
             className="w-auto"
           />
           <SegmentedControl

@@ -6,12 +6,10 @@ import { api as ledgerlyApi } from "@/lib/ledgerly/api";
 import { api as menulyApi } from "@/lib/menuly/api";
 import { Card } from "@/components/admin/ui/card";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { ActionsMenu } from "@/components/admin/ui/actions-menu";
 import { ItemDetailModal } from "@/components/pantrly/item-detail-modal";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayStr as today } from "@/lib/admin/period";
 
 // Days since a YYYY-MM-DD date, or null if never counted.
 function daysSince(dateStr: string | null): number | null {
@@ -109,6 +107,9 @@ export function StockSummaryList({
   onMenuImpact: (item: Item) => void;
 }) {
   const [range, setRange] = useState<"week" | "month">("week");
+  // Any date in the period being viewed — drives consumed/expected only;
+  // current stock and low-stock flags are always as of now.
+  const [anchor, setAnchor] = useState(today());
   const [summary, setSummary] = useState<StockSummaryResponse | null>(null);
   const [expected, setExpected] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -136,7 +137,7 @@ export function StockSummaryList({
     let cancelled = false;
     setLoading(true);
     api
-      .stockSummary(range, today())
+      .stockSummary(range, anchor)
       .then(async (data) => {
         const stockData = { ...data, items: data.items ?? [] };
         if (cancelled) return;
@@ -175,7 +176,7 @@ export function StockSummaryList({
     return () => {
       cancelled = true;
     };
-  }, [range]);
+  }, [range, anchor]);
 
   return (
     <div>
@@ -183,14 +184,17 @@ export function StockSummaryList({
         <p className="text-sm text-navy/60">
           Computed current stock, low-stock flags, and consumption over the range.
         </p>
-        <SegmentedControl
-          options={[
-            { label: "This week", value: "week" },
-            { label: "This month", value: "month" },
-          ]}
-          value={range}
-          onChange={setRange}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type={range} anchor={anchor} onChange={setAnchor} />
+          <SegmentedControl
+            options={[
+              { label: "Week", value: "week" },
+              { label: "Month", value: "month" },
+            ]}
+            value={range}
+            onChange={setRange}
+          />
+        </div>
       </div>
 
       {loading ? (

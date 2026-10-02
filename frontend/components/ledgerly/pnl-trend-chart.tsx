@@ -18,7 +18,7 @@ const COLOR_PROFIT = "#1baf7a";
 const COLOR_GOOD = "#0ca30c";
 const COLOR_LOSS = "#d03b3b";
 
-function compactINR(cents: number): string {
+export function compactINR(cents: number): string {
   const rupees = cents / 100;
   const sign = rupees < 0 ? "-" : "";
   const abs = Math.abs(rupees);

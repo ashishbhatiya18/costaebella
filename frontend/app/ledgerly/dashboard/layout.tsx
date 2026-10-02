@@ -40,6 +40,15 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
+function TrendIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M4 17l5-5 4 4 7-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 8h5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function DownloadIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -53,6 +62,7 @@ const NAV_ITEMS = [
   { href: "/ledgerly/dashboard/log-revenue", label: "Log Income", shortLabel: "Income", Icon: CoinIcon, gated: false },
   { href: "/ledgerly/dashboard/payments", label: "Expense", shortLabel: "Expense", Icon: ReceiptIcon, gated: false },
   { href: "/ledgerly/dashboard/summary", label: "P&L Summary", shortLabel: "Summary", Icon: ChartIcon, gated: true },
+  { href: "/ledgerly/dashboard/expense-trends", label: "Expense Trends", shortLabel: "Trends", Icon: TrendIcon, gated: true },
   { href: "/ledgerly/dashboard/tax-export", label: "Tax Export", shortLabel: "Tax", Icon: DownloadIcon, gated: true },
 ];
 

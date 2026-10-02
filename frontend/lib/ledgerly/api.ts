@@ -81,6 +81,34 @@ export type PnlTrendPoint = {
   profit_cents: number;
 };
 
+// One calendar month of GET /api/ledgerly/summary/expenses/trend. Built from
+// the same backend computation as the P&L Summary, so expenses_cents matches
+// P&L's figure for that month.
+export type ExpenseTrendMonth = {
+  from: string;
+  to: string;
+  revenue_cents: number;
+  // Pantrly costed deliveries + supplier_purchase payments (both counted).
+  grocery_cents: number;
+  grocery_pantrly_cents: number;
+  grocery_supplier_payments_cents: number;
+  // Accrued from Shiftly attendance (clipped to today).
+  salary_earned_cents: number;
+  // ledgerly_payments with category = salary.
+  salary_paid_cents: number;
+  advances_cents: number;
+  payments_by_category: Partial<Record<Category, number>> | null;
+  payments_cents: number;
+  expenses_cents: number;
+  profit_cents: number;
+};
+
+export type ExpenseTrend = {
+  anchor_date: string;
+  periods: number;
+  months: ExpenseTrendMonth[];
+};
+
 export const api = {
   // Access probe for the gated P&L summary — 200 if allowed, throws
   // ApiError(403) otherwise.
@@ -133,8 +161,13 @@ export const api = {
   pnlSummary: (range: "week" | "month", anchorDate: string) =>
     request<PnlSummary>(`/api/ledgerly/summary/pnl?range=${range}&anchor_date=${anchorDate}`),
 
-  pnlTrend: (range: "week" | "month", periods: number) =>
+  pnlTrend: (range: "week" | "month", periods: number, anchorDate?: string) =>
     request<{ range: string; periods: PnlTrendPoint[] }>(
-      `/api/ledgerly/summary/pnl/trend?range=${range}&periods=${periods}`,
+      `/api/ledgerly/summary/pnl/trend?range=${range}&periods=${periods}${anchorDate ? `&anchor_date=${anchorDate}` : ""}`,
+    ),
+
+  expenseTrend: (periods: number, anchorDate: string) =>
+    request<ExpenseTrend>(
+      `/api/ledgerly/summary/expenses/trend?periods=${periods}&anchor_date=${anchorDate}`,
     ),
 };

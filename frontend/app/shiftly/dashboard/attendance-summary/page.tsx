@@ -5,10 +5,12 @@ import { api, ApiError, AttendanceSummaryResponse, DayCategory, Employee } from 
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { AttendanceOverrideModal } from "@/components/shiftly/attendance-override-modal";
 import { getShiftSessionsForDate } from "@/lib/shiftly/shift-times";
 import { clsx } from "@/lib/admin/clsx";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { todayStr } from "@/lib/admin/period";
 
 type RangeType = "week" | "month" | "quarter";
 
@@ -17,10 +19,6 @@ type Selection = {
   employeeName: string;
   dates: Set<string>;
 };
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 const CATEGORY_STYLE: Record<
   DayCategory,
@@ -44,6 +42,8 @@ const LEGEND_ITEMS: { label: string; swatch: string }[] = [
 export default function AttendanceSummaryPage() {
   usePageTitle("Attendance Summary");
   const [range, setRange] = useState<RangeType>("week");
+  // Any date inside the period being viewed; the navigator steps it.
+  const [anchor, setAnchor] = useState(todayStr());
   const [data, setData] = useState<AttendanceSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -64,12 +64,21 @@ export default function AttendanceSummaryPage() {
     return map;
   }, [employees]);
 
+  // Always reloads the period currently on screen (range + anchor), so an
+  // override/bulk edit refreshes that period rather than jumping to today.
+  // The request id drops stale responses when stepping through periods fast.
+  const loadIdRef = useRef(0);
   function load() {
+    const id = ++loadIdRef.current;
     setLoading(true);
     return api
-      .attendanceSummary(range, today())
-      .then(setData)
-      .finally(() => setLoading(false));
+      .attendanceSummary(range, anchor)
+      .then((res) => {
+        if (id === loadIdRef.current) setData(res);
+      })
+      .finally(() => {
+        if (id === loadIdRef.current) setLoading(false);
+      });
   }
 
   useEffect(() => {
@@ -77,9 +86,11 @@ export default function AttendanceSummaryPage() {
   }, []);
 
   useEffect(() => {
+    // Drop any half-made drag selection — its days may not be on screen.
+    selectionRef.current = null;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [range, anchor]);
 
   // Finalizes a drag gesture. Deliberately does NOT open the modal itself —
   // that's handled by each cell's onClick instead, since the native click
@@ -217,15 +228,18 @@ export default function AttendanceSummaryPage() {
             {data ? `${data.from} → ${data.to}` : "Loading range…"}
           </p>
         </div>
-        <SegmentedControl
-          value={range}
-          onChange={setRange}
-          options={[
-            { label: "Week", value: "week" },
-            { label: "Month", value: "month" },
-            { label: "Quarter", value: "quarter" },
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type={range} anchor={anchor} onChange={setAnchor} />
+          <SegmentedControl
+            value={range}
+            onChange={setRange}
+            options={[
+              { label: "Week", value: "week" },
+              { label: "Month", value: "month" },
+              { label: "Quarter", value: "quarter" },
+            ]}
+          />
+        </div>
       </div>
 
       {loading && <p className="text-sm text-navy/60">Loading…</p>}

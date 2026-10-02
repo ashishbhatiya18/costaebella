@@ -216,6 +216,7 @@ func main() {
 				})
 				gr.Get("/api/ledgerly/summary/pnl", pnlHandler.Summary)
 				gr.Get("/api/ledgerly/summary/pnl/trend", pnlHandler.Trend)
+				gr.Get("/api/ledgerly/summary/expenses/trend", pnlHandler.ExpenseTrend)
 
 				gr.Get("/api/menuly/visibility", visibilityHandler.List)
 				gr.Put("/api/menuly/visibility", visibilityHandler.Set)

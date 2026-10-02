@@ -5,38 +5,45 @@ import { api, PnlSummary, PnlTrendPoint } from "@/lib/ledgerly/api";
 import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
 import { Card } from "@/components/admin/ui/card";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { PnlTrendChart } from "@/components/ledgerly/pnl-trend-chart";
 import { PnlSankey } from "@/components/ledgerly/pnl-sankey";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { todayStr } from "@/lib/admin/period";
 
 const TREND_PERIODS = 8;
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export default function PnlSummaryPage() {
   usePageTitle("P&L Summary");
   const access = useLedgerlyAccess();
   const [range, setRange] = useState<"week" | "month">("week");
+  // Any date in the period being viewed; the trend chart ends at it too.
+  const [anchor, setAnchor] = useState(todayStr());
   const [summary, setSummary] = useState<PnlSummary | null>(null);
   const [trend, setTrend] = useState<PnlTrendPoint[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (access !== "allowed") return;
+    let cancelled = false;
     setLoading(true);
     Promise.all([
-      api.pnlSummary(range, today()),
-      api.pnlTrend(range, TREND_PERIODS),
+      api.pnlSummary(range, anchor),
+      api.pnlTrend(range, TREND_PERIODS, anchor),
     ])
       .then(([summaryData, trendData]) => {
+        if (cancelled) return;
         setSummary({ ...summaryData, pantrly_purchases: summaryData.pantrly_purchases ?? [] });
         setTrend(trendData.periods ?? []);
       })
-      .finally(() => setLoading(false));
-  }, [access, range]);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [access, range, anchor]);
 
   if (access === "checking") return null;
 
@@ -61,14 +68,17 @@ export default function PnlSummaryPage() {
           <h1 className="font-display text-2xl text-navy">P&amp;L Summary</h1>
           <p className="mt-1 text-sm text-navy/60">Income, expenses, and profit for the period.</p>
         </div>
-        <SegmentedControl
-          options={[
-            { label: "This week", value: "week" },
-            { label: "This month", value: "month" },
-          ]}
-          value={range}
-          onChange={setRange}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type={range} anchor={anchor} onChange={setAnchor} />
+          <SegmentedControl
+            options={[
+              { label: "Week", value: "week" },
+              { label: "Month", value: "month" },
+            ]}
+            value={range}
+            onChange={setRange}
+          />
+        </div>
       </div>
 
       {loading || !summary ? (

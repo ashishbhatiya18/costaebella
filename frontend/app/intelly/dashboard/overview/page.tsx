@@ -9,30 +9,14 @@ import { Card } from "@/components/admin/ui/card";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
+import { daysAgoStr as daysAgo, periodBounds, toDateStr, todayStr } from "@/lib/admin/period";
 
+// Monday-start week/month bounds and local-date helpers are shared
+// (lib/admin/period.ts) — they match every backend range endpoint (pnl,
+// stock summary), so numbers here line up with what those apps show.
 function fmt(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-function daysAgo(n: number) {
-  return fmt(new Date(Date.now() - n * 86400000));
-}
-
-// Monday-start week/month bounds — matches the convention every backend
-// range endpoint (pnl, stock summary) already uses, so numbers here line
-// up with what those apps show for "this week"/"this month".
-function rangeBounds(rangeType: "week" | "month", anchor = new Date()): [string, string] {
-  const a = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-  if (rangeType === "week") {
-    const offset = (a.getDay() + 6) % 7;
-    const start = new Date(a);
-    start.setDate(a.getDate() - offset);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return [fmt(start), fmt(end)];
-  }
-  const start = new Date(a.getFullYear(), a.getMonth(), 1);
-  const end = new Date(a.getFullYear(), a.getMonth() + 1, 0);
-  return [fmt(start), fmt(end)];
+  return toDateStr(d);
 }
 
 function normalizeMethod(method: string): "cash" | "card" | "upi" | "other" {
@@ -74,6 +58,10 @@ type WeekdayRow = {
 export default function IntellyOverviewPage() {
   usePageTitle("Overview");
   const [range, setRange] = useState<"week" | "month">("week");
+  // Any date in the period being viewed. Only the period financials and
+  // untagged-sales count follow it; the weekday mix, stock, and cost
+  // lookbacks are always relative to today.
+  const [anchor, setAnchor] = useState(todayStr());
   const [financials, setFinancials] = useState<Financials | null>(null);
   const [weekdayRows, setWeekdayRows] = useState<WeekdayRow[]>([]);
   const [staleOrLowStockCount, setStaleOrLowStockCount] = useState(0);
@@ -82,9 +70,10 @@ export default function IntellyOverviewPage() {
   const [irregularityImpact, setIrregularityImpact] = useState<IrregularityImpact | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [from, to] = useMemo(() => rangeBounds(range), [range]);
+  const { from, to } = useMemo(() => periodBounds(range, anchor), [range, anchor]);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const lookbackFrom = daysAgo(WEEKDAY_LOOKBACK_DAYS);
     const lookbackTo = fmt(new Date());
@@ -101,6 +90,7 @@ export default function IntellyOverviewPage() {
       pantrlyApi.listPurchases({ from: costLookbackFrom, to: fmt(new Date()) }),
       menulyApi.listComposition(),
     ]).then(([sales, payments, purchases, laborCost, lookbackSales, lookbackLaborCost, stock, recentPurchases, composition]) => {
+      if (cancelled) return;
       const revenueCents = (sales ?? []).reduce((sum, s) => sum + s.amount_cents, 0);
       const paymentsCents = (payments ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
       const purchasesCents = (purchases ?? []).reduce((sum, p) => sum + (p.cost_cents ?? 0), 0);
@@ -205,7 +195,12 @@ export default function IntellyOverviewPage() {
           };
         }),
       );
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [from, to]);
 
   const bestWeekday = weekdayRows.reduce(
@@ -227,14 +222,17 @@ export default function IntellyOverviewPage() {
             Shiftly, Pantrly, Ledgerly, and Menuly.
           </p>
         </div>
-        <SegmentedControl
-          options={[
-            { label: "This week", value: "week" },
-            { label: "This month", value: "month" },
-          ]}
-          value={range}
-          onChange={setRange}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type={range} anchor={anchor} onChange={setAnchor} />
+          <SegmentedControl
+            options={[
+              { label: "Week", value: "week" },
+              { label: "Month", value: "month" },
+            ]}
+            value={range}
+            onChange={setRange}
+          />
+        </div>
       </div>
 
       {loading || !financials ? (

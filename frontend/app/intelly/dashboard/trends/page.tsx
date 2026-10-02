@@ -5,25 +5,12 @@ import { api as ledgerlyApi } from "@/lib/ledgerly/api";
 import { api as pantrlyApi } from "@/lib/pantrly/api";
 import { Card } from "@/components/admin/ui/card";
 import { formatINR } from "@/lib/admin/format";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+// Monday-start weeks — same convention as every other range endpoint.
+import { isCurrentPeriod, periodBounds, periodLabel, shiftAnchor, todayStr } from "@/lib/admin/period";
 
 const WEEKS_OF_HISTORY = 6;
-
-function fmt(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
-// Monday-start week containing `anchor` — same convention as every other
-// range endpoint in the repo.
-function weekBounds(anchor: Date): [string, string] {
-  const a = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-  const offset = (a.getDay() + 6) % 7;
-  const start = new Date(a);
-  start.setDate(a.getDate() - offset);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return [fmt(start), fmt(end)];
-}
 
 type WeekRow = {
   from: string;
@@ -39,14 +26,17 @@ export default function IntellyTrendsPage() {
   usePageTitle("Trends");
   const [weeks, setWeeks] = useState<WeekRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Any date in the newest week shown; the table covers the
+  // WEEKS_OF_HISTORY weeks ending with it.
+  const [anchor, setAnchor] = useState(todayStr());
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const ranges: [string, string][] = [];
     for (let i = WEEKS_OF_HISTORY - 1; i >= 0; i--) {
-      const anchor = new Date();
-      anchor.setDate(anchor.getDate() - i * 7);
-      ranges.push(weekBounds(anchor));
+      const { from, to } = periodBounds("week", shiftAnchor("week", anchor, -i));
+      ranges.push([from, to]);
     }
 
     Promise.all(
@@ -73,18 +63,29 @@ export default function IntellyTrendsPage() {
         };
       }),
     )
-      .then(setWeeks)
-      .finally(() => setLoading(false));
-  }, []);
+      .then((rows) => {
+        if (!cancelled) setWeeks(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [anchor]);
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-display text-2xl text-navy">Trends</h1>
-        <p className="mt-1 text-sm text-navy/60">
-          Last {WEEKS_OF_HISTORY} weeks, week over week — is revenue and inventory spend moving together, and
-          is Menuly&apos;s data quality holding up.
-        </p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl text-navy">Trends</h1>
+          <p className="mt-1 text-sm text-navy/60">
+            {isCurrentPeriod("week", anchor) ? "Last" : "The"} {WEEKS_OF_HISTORY} weeks ending{" "}
+            {periodLabel("week", anchor)}, week over week — is revenue and inventory spend moving together,
+            and is Menuly&apos;s data quality holding up.
+          </p>
+        </div>
+        <PeriodNavigator type="week" anchor={anchor} onChange={setAnchor} />
       </div>
 
       {loading ? (

@@ -111,7 +111,9 @@ export function buildPayoutReportPdf(employeeName: string, month: string, payout
   const today = istDateString(new Date());
   const breakdownSoFar = payout.daily_breakdown.filter((d) => d.date <= today);
   const presentDays = breakdownSoFar.filter((d) => d.category === "present").length;
-  const absentDays = breakdownSoFar.filter((d) => d.category === "absent").length;
+  // Leave and absent are the same thing for payout purposes (both unpaid,
+  // non-weekly-off days), so count them together.
+  const absentDays = breakdownSoFar.filter((d) => d.category === "absent" || d.category === "leave").length;
   const expectedHours = payout.working_days_in_month * payout.eligible_hours_per_day;
 
   autoTable(doc, {

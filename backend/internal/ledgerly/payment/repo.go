@@ -104,3 +104,29 @@ func (r *Repo) RangeTotal(ctx context.Context, from, to string) (int64, error) {
 	}
 	return total, nil
 }
+
+// RangeTotalsByCategory sums amount_cents per category for every payment
+// within [from, to], in a single GROUP BY query. Categories with no payments
+// in the range are absent from the map. Summing the map's values equals
+// RangeTotal for the same range.
+func (r *Repo) RangeTotalsByCategory(ctx context.Context, from, to string) (map[string]int64, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT category, COALESCE(SUM(amount_cents), 0) FROM ledgerly_payments
+		WHERE payment_date BETWEEN $1 AND $2
+		GROUP BY category`, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("sum payments by category: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[string]int64{}
+	for rows.Next() {
+		var category string
+		var total int64
+		if err := rows.Scan(&category, &total); err != nil {
+			return nil, fmt.Errorf("scan payment category total: %w", err)
+		}
+		out[category] = total
+	}
+	return out, rows.Err()
+}

@@ -11,7 +11,9 @@ import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
 import { PaymentForm, PaymentFormValue } from "@/components/ledgerly/payment-form";
 import { formatINR } from "@/lib/admin/format";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { periodBounds, periodLabel, todayStr } from "@/lib/admin/period";
 
 const CATEGORY_LABELS: Record<string, string> = {
   rent: "Rent",
@@ -26,15 +28,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-function firstOfMonth() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function PaymentsPage() {
   usePageTitle("Expense");
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -43,12 +36,15 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Payment | null>(null);
+  // Any date in the month being viewed.
+  const [anchor, setAnchor] = useState(todayStr());
+  const { from, to } = periodBounds("month", anchor);
 
   async function load() {
     setLoading(true);
     try {
       const [paymentsData, employeesData, suppliersData] = await Promise.all([
-        ledgerlyApi.listPayments({ from: firstOfMonth(), to: today() }),
+        ledgerlyApi.listPayments({ from, to }),
         shiftlyApi.listEmployees(),
         pantrlyApi.listSuppliers(),
       ]);
@@ -62,7 +58,8 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to]);
 
   function openCreate() {
     setEditing(null);
@@ -102,10 +99,14 @@ export default function PaymentsPage() {
         <Button onClick={openCreate}>+ Add expense</Button>
       </div>
 
+      <div className="mb-6">
+        <PeriodNavigator type="month" anchor={anchor} onChange={setAnchor} />
+      </div>
+
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>
       ) : payments.length === 0 ? (
-        <Card className="p-10 text-center text-navy/50">No expenses logged this month yet.</Card>
+        <Card className="p-10 text-center text-navy/50">No expenses logged in {periodLabel("month", anchor)}.</Card>
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">

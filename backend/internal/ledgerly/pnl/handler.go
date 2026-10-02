@@ -46,6 +46,9 @@ type period struct {
 	ExpensesCents     int64                    `json:"expenses_cents"`
 	ProfitCents       int64                    `json:"profit_cents"`
 	PantrlyPurchases  []stock.PurchaseWithItem `json:"pantrly_purchases"`
+	// PaymentsByCategory breaks PaymentsCents down by ledgerly_payments
+	// category (only categories with payments in range are present).
+	PaymentsByCategory map[string]int64 `json:"payments_by_category"`
 }
 
 // compute derives one period's P&L for [from, to]. Salary is accrued labor
@@ -64,9 +67,16 @@ func (h *Handler) compute(ctx context.Context, from, to time.Time) (period, erro
 		revenueCents += v
 	}
 
-	paymentsCents, err := h.payments.RangeTotal(ctx, fromStr, toStr)
+	// Per-category totals (one GROUP BY query); their sum is the same
+	// all-categories payments figure P&L has always used, and the breakdown
+	// feeds the Expense Trends view without a second query.
+	paymentsByCategory, err := h.payments.RangeTotalsByCategory(ctx, fromStr, toStr)
 	if err != nil {
 		return period{}, err
+	}
+	var paymentsCents int64
+	for _, v := range paymentsByCategory {
+		paymentsCents += v
 	}
 
 	purchases, err := h.stock.ListPurchasesWithCost(ctx, fromStr, toStr)
@@ -102,20 +112,21 @@ func (h *Handler) compute(ctx context.Context, from, to time.Time) (period, erro
 	expensesCents := paymentsCents + purchasesCents + advancesCents + salaryCents
 
 	return period{
-		From:              fromStr,
-		To:                toStr,
-		RevenueCents:      revenueCents,
-		RevenueCashCents:  revenueByMethod["cash"],
-		RevenueCardCents:  revenueByMethod["card"],
-		RevenueUpiCents:   revenueByMethod["upi"],
-		RevenueOtherCents: revenueByMethod["other"],
-		PaymentsCents:     paymentsCents,
-		PurchasesCents:    purchasesCents,
-		AdvancesCents:     advancesCents,
-		SalaryCents:       salaryCents,
-		ExpensesCents:     expensesCents,
-		ProfitCents:       revenueCents - expensesCents,
-		PantrlyPurchases:  purchases,
+		From:               fromStr,
+		To:                 toStr,
+		RevenueCents:       revenueCents,
+		RevenueCashCents:   revenueByMethod["cash"],
+		RevenueCardCents:   revenueByMethod["card"],
+		RevenueUpiCents:    revenueByMethod["upi"],
+		RevenueOtherCents:  revenueByMethod["other"],
+		PaymentsCents:      paymentsCents,
+		PurchasesCents:     purchasesCents,
+		AdvancesCents:      advancesCents,
+		SalaryCents:        salaryCents,
+		ExpensesCents:      expensesCents,
+		ProfitCents:        revenueCents - expensesCents,
+		PantrlyPurchases:   purchases,
+		PaymentsByCategory: paymentsByCategory,
 	}, nil
 }
 
@@ -167,9 +178,9 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Trend handles GET /api/ledgerly/summary/pnl/trend?range=week|month&periods=N
-// — returns the last N consecutive periods (oldest first, ending at the
-// current one) of revenue/expenses/profit, for charting.
+// Trend handles GET /api/ledgerly/summary/pnl/trend?range=week|month&periods=N&anchor_date=YYYY-MM-DD
+// — returns N consecutive periods (oldest first, ending at the period
+// containing anchor_date, default today) of revenue/expenses/profit, for charting.
 func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	rangeType := q.Get("range")
@@ -195,14 +206,26 @@ func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
 		periods = maxPeriods
 	}
 
+	// anchor_date (optional, default today) picks the period the trend ends
+	// at, so the chart can follow the summary when stepping back in time.
 	anchor := time.Now()
+	if a := q.Get("anchor_date"); a != "" {
+		parsed, err := time.Parse("2006-01-02", a)
+		if err != nil {
+			http.Error(w, "invalid anchor_date, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		anchor = parsed
+	}
 	out := make([]map[string]interface{}, 0, periods)
 	for i := periods - 1; i >= 0; i-- {
 		var periodAnchor time.Time
 		if rangeType == "week" {
 			periodAnchor = anchor.AddDate(0, 0, -7*i)
 		} else {
-			periodAnchor = anchor.AddDate(0, -i, 0)
+			// Step from the 1st so e.g. 31 Oct − 1 month can't normalize
+			// to 1 Oct (skipping September).
+			periodAnchor = time.Date(anchor.Year(), anchor.Month()-time.Month(i), 1, 0, 0, 0, 0, time.UTC)
 		}
 		from, to := rangeBounds(rangeType, periodAnchor)
 

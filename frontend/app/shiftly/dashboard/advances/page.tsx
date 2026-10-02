@@ -9,16 +9,9 @@ import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
 import { AdvanceForm, AdvanceFormValue } from "@/components/shiftly/advance-form";
 import { formatINR } from "@/lib/admin/format";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
-
-function firstOfMonth() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { periodBounds, periodLabel, todayStr } from "@/lib/admin/period";
 
 export default function AdvancesPage() {
   usePageTitle("Advances");
@@ -27,12 +20,16 @@ export default function AdvancesPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Advance | null>(null);
+  // Any date in the month being viewed.
+  const [anchor, setAnchor] = useState(todayStr());
+  const { from, to } = periodBounds("month", anchor);
+  const monthLabel = periodLabel("month", anchor);
 
   async function load() {
     setLoading(true);
     try {
       const [advancesData, employeesData] = await Promise.all([
-        api.listAdvances({ from: firstOfMonth(), to: today() }),
+        api.listAdvances({ from, to }),
         api.listEmployees(),
       ]);
       setAdvances(advancesData ?? []);
@@ -44,7 +41,8 @@ export default function AdvancesPage() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to]);
 
   function employeeName(id: string) {
     return employees.find((e) => e.id === id)?.name ?? "—";
@@ -90,17 +88,21 @@ export default function AdvancesPage() {
         <Button onClick={openCreate}>+ Log advance</Button>
       </div>
 
+      <div className="mb-6">
+        <PeriodNavigator type="month" anchor={anchor} onChange={setAnchor} />
+      </div>
+
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>
       ) : (
         <>
           <Card className="mb-4 flex items-center justify-between p-5">
-            <span className="text-sm text-navy/60">Total advances this month</span>
+            <span className="text-sm text-navy/60">Total advances · {monthLabel}</span>
             <span className="text-2xl font-semibold text-navy">{formatINR(total)}</span>
           </Card>
 
           {advances.length === 0 ? (
-            <Card className="p-10 text-center text-navy/50">No advances logged this month yet.</Card>
+            <Card className="p-10 text-center text-navy/50">No advances logged in {monthLabel}.</Card>
           ) : (
             <Card className="overflow-x-auto">
               <table className="w-full text-sm">

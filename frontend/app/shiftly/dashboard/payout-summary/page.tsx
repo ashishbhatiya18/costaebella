@@ -1,31 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, PayoutSummaryResponse } from "@/lib/shiftly/api";
 import { buildPayoutReportPdf } from "@/lib/shiftly/payout-report";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
-import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { useAuth } from "@/lib/admin/auth-context";
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-// Last 6 months (oldest first, current month last).
-function recentMonths(count: number) {
-  const now = new Date();
-  const months: { value: string; label: string }[] = [];
-  for (let i = count - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({
-      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      label: d.toLocaleDateString(undefined, { month: "short", year: "numeric" }),
-    });
-  }
-  return months;
-}
+import { todayStr } from "@/lib/admin/period";
 
 function formatMoney(cents: number) {
   return (cents / 100).toLocaleString("en-IN", {
@@ -39,15 +22,27 @@ export default function PayoutSummaryPage() {
   usePageTitle("Payout Summary");
   const { role } = useAuth();
   const allowed = role === "owner" || role === "accounting";
-  const months = useMemo(() => recentMonths(6), []);
-  const [month, setMonth] = useState(currentMonth());
+  // Any date in the month being viewed; the backend takes it as YYYY-MM.
+  const [anchor, setAnchor] = useState(todayStr());
+  const month = anchor.slice(0, 7);
   const [data, setData] = useState<PayoutSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!allowed) return;
+    let cancelled = false;
     setLoading(true);
-    api.payoutSummary(month).then(setData).finally(() => setLoading(false));
+    api
+      .payoutSummary(month)
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [allowed, month]);
 
   // Nav already hides this tab for non-accounting roles — this covers
@@ -77,11 +72,7 @@ export default function PayoutSummaryPage() {
       </div>
 
       <div className="mb-6">
-        <SegmentedControl
-          options={months.map((m) => ({ label: m.label, value: m.value }))}
-          value={month}
-          onChange={setMonth}
-        />
+        <PeriodNavigator type="month" anchor={anchor} onChange={setAnchor} />
       </div>
 
       {loading ? (

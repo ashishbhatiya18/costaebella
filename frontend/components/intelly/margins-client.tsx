@@ -7,18 +7,9 @@ import { api as pantrlyApi, Purchase, ItemStock } from "@/lib/pantrly/api";
 import { Card } from "@/components/admin/ui/card";
 import { Input } from "@/components/admin/ui/input";
 import { formatINR } from "@/lib/admin/format";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
-
-function firstOfMonth() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-function daysAgo(n: number) {
-  return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
-}
+import { daysAgoStr as daysAgo, monthRange, monthRangeLabel, todayStr as today } from "@/lib/admin/period";
 
 type DishMargin = {
   name: string;
@@ -31,8 +22,16 @@ type DishMargin = {
 
 export function MarginsClient({ prices }: { prices: Record<string, number> }) {
   usePageTitle("Margins");
-  const [from, setFrom] = useState(firstOfMonth());
-  const [to, setTo] = useState(today());
+  const [from, setFrom] = useState(() => monthRange(today()).from);
+  const [to, setTo] = useState(() => monthRange(today()).to);
+
+  // Month stepper on top of the free date inputs: snaps from/to to the
+  // chosen month (month-to-date for the current one).
+  function goToMonth(anchor: string) {
+    const r = monthRange(anchor);
+    setFrom(r.from);
+    setTo(r.to);
+  }
   const [sales, setSales] = useState<Sale[]>([]);
   const [composition, setComposition] = useState<CompositionEntry[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -160,10 +159,13 @@ export function MarginsClient({ prices }: { prices: Record<string, number> }) {
             consumption is running ahead of what orders would explain.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-auto" />
-          <span className="text-navy/40">to</span>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-auto" />
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type="month" anchor={from} onChange={goToMonth} label={monthRangeLabel(from, to)} />
+          <div className="flex items-center gap-2">
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-auto" />
+            <span className="text-navy/40">to</span>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-auto" />
+          </div>
         </div>
       </div>
 

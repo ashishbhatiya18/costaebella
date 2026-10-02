@@ -180,6 +180,7 @@ func main() {
 			ir.Delete("/api/pantrly/stock/{id}", stockHandler.DeleteLog)
 			ir.Post("/api/pantrly/purchases", stockHandler.RecordPurchase)
 			ir.Get("/api/pantrly/purchases", stockHandler.ListPurchases)
+			ir.Put("/api/pantrly/purchases/{id}", stockHandler.UpdatePurchase)
 			ir.Delete("/api/pantrly/purchases/{id}", stockHandler.DeletePurchase)
 			ir.Get("/api/pantrly/summary/stock", stockHandler.Summary)
 

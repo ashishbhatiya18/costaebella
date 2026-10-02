@@ -2,8 +2,10 @@ package stock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -81,6 +83,27 @@ func (r *Repo) InsertPurchase(ctx context.Context, p PurchaseRequest) (*Purchase
 		&out.ID, &out.ItemID, &out.SupplierID, &out.Quantity, &out.CostCents, &out.PaymentMethod, &out.PurchaseDate, &out.Notes, &out.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert purchase: %w", err)
+	}
+	return &out, nil
+}
+
+// UpdatePurchase overwrites a delivery's editable fields, returning nil
+// (no error) if no delivery has that id.
+func (r *Repo) UpdatePurchase(ctx context.Context, id string, p PurchaseRequest) (*Purchase, error) {
+	var out Purchase
+	err := r.pool.QueryRow(ctx, `
+		UPDATE pantrly_purchases
+		SET item_id = $2, supplier_id = $3, quantity = $4, cost_cents = $5,
+		    payment_method = $6, purchase_date = $7, notes = $8
+		WHERE id = $1
+		RETURNING id, item_id, supplier_id, quantity, cost_cents, payment_method, purchase_date::text, notes, created_at`,
+		id, p.ItemID, p.SupplierID, p.Quantity, p.CostCents, p.PaymentMethod, p.PurchaseDate, p.Notes).Scan(
+		&out.ID, &out.ItemID, &out.SupplierID, &out.Quantity, &out.CostCents, &out.PaymentMethod, &out.PurchaseDate, &out.Notes, &out.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update purchase: %w", err)
 	}
 	return &out, nil
 }

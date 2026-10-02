@@ -44,6 +44,7 @@ export type Purchase = {
   payment_method: string;
   purchase_date: string;
   notes: string;
+  created_at?: string;
 };
 
 export type ItemStock = {
@@ -181,6 +182,25 @@ export const api = {
     q.set("to", params.to);
     return request<Purchase[]>(`/api/pantrly/purchases?${q.toString()}`);
   },
+
+  // Corrects a delivery in place (keeps its id and created_at). Takes the
+  // full delivery — same fields and validation as recordPurchase.
+  updatePurchase: (
+    id: string,
+    body: {
+      item_id: string;
+      supplier_id?: string | null;
+      quantity: number;
+      cost_cents: number;
+      payment_method?: string;
+      purchase_date: string;
+      notes?: string;
+    },
+  ) =>
+    request<Purchase>(`/api/pantrly/purchases/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 
   deletePurchase: (id: string) =>
     request<void>(`/api/pantrly/purchases/${id}`, { method: "DELETE" }),

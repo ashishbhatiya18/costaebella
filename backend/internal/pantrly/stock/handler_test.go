@@ -9,7 +9,8 @@ import (
 )
 
 // A future or pre-opening purchase_date is rejected before anything touches
-// the repo (the handler's repo is nil here, so reaching it would panic).
+// the repo (the handler's repo is nil here, so reaching it would panic) —
+// on both create (POST) and update (PUT), which share validatePurchase.
 func TestRecordPurchaseRejectsOutOfRangeDates(t *testing.T) {
 	h := NewHandler(nil)
 	tomorrow := time.Now().In(ist).AddDate(0, 0, 1).Format("2006-01-02")
@@ -25,7 +26,12 @@ func TestRecordPurchaseRejectsOutOfRangeDates(t *testing.T) {
 			rec := httptest.NewRecorder()
 			h.RecordPurchase(rec, httptest.NewRequest(http.MethodPost, "/api/pantrly/purchases", strings.NewReader(body)))
 			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("date %s: got status %d, want 400 (%s)", date, rec.Code, rec.Body.String())
+				t.Fatalf("create, date %s: got status %d, want 400 (%s)", date, rec.Code, rec.Body.String())
+			}
+			rec = httptest.NewRecorder()
+			h.UpdatePurchase(rec, httptest.NewRequest(http.MethodPut, "/api/pantrly/purchases/x", strings.NewReader(body)))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("update, date %s: got status %d, want 400 (%s)", date, rec.Code, rec.Body.String())
 			}
 		})
 	}

@@ -85,6 +85,45 @@ func (h *Handler) DeleteLog(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// validatePurchase checks a create/update request and fills defaults
+// (payment method UPI, date today in IST). It returns a client-facing error
+// message, or "" if the request is valid. Shared by RecordPurchase and
+// UpdatePurchase so the two can never drift apart.
+func validatePurchase(req *PurchaseRequest) string {
+	if req.ItemID == "" {
+		return "item_id is required"
+	}
+	if req.Quantity <= 0 {
+		return "quantity must be positive"
+	}
+	if req.CostCents == nil || *req.CostCents <= 0 {
+		return "cost_cents is required and must be positive"
+	}
+	if req.PaymentMethod == "" {
+		req.PaymentMethod = "upi"
+	}
+	if !validPaymentMethods[req.PaymentMethod] {
+		return "payment_method must be one of: cash, bank, upi, other"
+	}
+	today := time.Now().In(ist).Format("2006-01-02")
+	if req.PurchaseDate == "" {
+		req.PurchaseDate = today
+	}
+	if _, err := time.Parse("2006-01-02", req.PurchaseDate); err != nil {
+		return "invalid purchase_date, expected YYYY-MM-DD"
+	}
+	// Plain string comparison is safe on YYYY-MM-DD. A future date or one
+	// before the restaurant opened is always a data-entry slip (e.g. the
+	// month left on the wrong value), never a real delivery.
+	if req.PurchaseDate > today {
+		return "purchase_date cannot be in the future"
+	}
+	if req.PurchaseDate < openingDate {
+		return "purchase_date cannot be before the restaurant opened (" + openingDate + ")"
+	}
+	return ""
+}
+
 // RecordPurchase handles POST /api/pantrly/purchases — logs a delivery
 // received from a (typically offline) supplier, increasing stock.
 func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
@@ -93,42 +132,8 @@ func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.ItemID == "" {
-		http.Error(w, "item_id is required", http.StatusBadRequest)
-		return
-	}
-	if req.Quantity <= 0 {
-		http.Error(w, "quantity must be positive", http.StatusBadRequest)
-		return
-	}
-	if req.CostCents == nil || *req.CostCents <= 0 {
-		http.Error(w, "cost_cents is required and must be positive", http.StatusBadRequest)
-		return
-	}
-	if req.PaymentMethod == "" {
-		req.PaymentMethod = "upi"
-	}
-	if !validPaymentMethods[req.PaymentMethod] {
-		http.Error(w, "payment_method must be one of: cash, bank, upi, other", http.StatusBadRequest)
-		return
-	}
-	today := time.Now().In(ist).Format("2006-01-02")
-	if req.PurchaseDate == "" {
-		req.PurchaseDate = today
-	}
-	if _, err := time.Parse("2006-01-02", req.PurchaseDate); err != nil {
-		http.Error(w, "invalid purchase_date, expected YYYY-MM-DD", http.StatusBadRequest)
-		return
-	}
-	// Plain string comparison is safe on YYYY-MM-DD. A future date or one
-	// before the restaurant opened is always a data-entry slip (e.g. the
-	// month left on the wrong value), never a real delivery.
-	if req.PurchaseDate > today {
-		http.Error(w, "purchase_date cannot be in the future", http.StatusBadRequest)
-		return
-	}
-	if req.PurchaseDate < openingDate {
-		http.Error(w, "purchase_date cannot be before the restaurant opened ("+openingDate+")", http.StatusBadRequest)
+	if msg := validatePurchase(&req); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
@@ -138,6 +143,35 @@ func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, p)
+}
+
+// UpdatePurchase handles PUT /api/pantrly/purchases/{id} — corrects a
+// recorded delivery in place (e.g. a quantity logged in grams on a kg item,
+// a cost missing a zero, the wrong date or payment method), keeping its id
+// and original created_at. Takes the full delivery, same shape and
+// validation as RecordPurchase.
+func (h *Handler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req PurchaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if msg := validatePurchase(&req); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	p, err := h.repo.UpdatePurchase(r.Context(), id, req)
+	if err != nil {
+		http.Error(w, "failed to update purchase", http.StatusInternalServerError)
+		return
+	}
+	if p == nil {
+		http.Error(w, "purchase not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }
 
 // ListPurchases handles GET /api/pantrly/purchases?item_id=&supplier_id=&from=&to=

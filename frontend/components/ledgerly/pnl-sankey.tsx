@@ -2,6 +2,7 @@
 
 import { PnlSummary } from "@/lib/ledgerly/api";
 import { Card } from "@/components/admin/ui/card";
+import { formatDateRange } from "@/lib/admin/format";
 
 // Validated categorical slots, reused from the trend chart plus a few more
 // from the same fixed 8-hue theme — sankey nodes carry a direct text label,
@@ -95,7 +96,7 @@ export function PnlSankey({ summary }: { summary: PnlSummary }) {
       <div className="mb-1">
         <h3 className="font-semibold text-navy">Where the money came from, where it went</h3>
         <p className="mt-0.5 text-xs text-navy/50">
-          {summary.from} – {summary.to}
+          {formatDateRange(summary.from, summary.to)}
           {loss > 0 && " — a loss period, shown as the owner covering the gap"}
         </p>
       </div>

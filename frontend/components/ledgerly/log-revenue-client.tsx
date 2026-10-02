@@ -12,10 +12,7 @@ import { clsx } from "@/lib/admin/clsx";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { parseBillText } from "@/lib/ledgerly/bill-ocr";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayStr } from "@/lib/admin/period";
 
 function toCents(value: string) {
   const n = Number(value);
@@ -42,7 +39,7 @@ function groupItemNames(names: string[]): { name: string; quantity: number }[] {
 
 export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   usePageTitle("Log Income");
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayStr());
 
   const [saleAmount, setSaleAmount] = useState("");
   const [salePaymentMethod, setSalePaymentMethod] = useState("cash");

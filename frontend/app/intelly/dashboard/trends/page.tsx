@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api as ledgerlyApi } from "@/lib/ledgerly/api";
 import { api as pantrlyApi } from "@/lib/pantrly/api";
 import { Card } from "@/components/admin/ui/card";
-import { formatINR } from "@/lib/admin/format";
+import { formatDateRange, formatINR } from "@/lib/admin/format";
 import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 // Monday-start weeks — same convention as every other range endpoint.
@@ -110,7 +110,7 @@ export default function IntellyTrendsPage() {
                 return (
                   <tr key={w.from} className="border-b border-navy/5 last:border-0">
                     <td className="px-5 py-3 font-medium text-navy">
-                      {w.from} – {w.to}
+                      {formatDateRange(w.from, w.to)}
                     </td>
                     <td className="px-5 py-3 text-navy/70">{formatINR(w.revenueCents)}</td>
                     <td className="px-5 py-3 text-navy/70">{formatINR(w.purchasesCents)}</td>

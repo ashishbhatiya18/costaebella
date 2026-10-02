@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Employee } from "@/lib/shiftly/api";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
+import { todayStr } from "@/lib/admin/period";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -40,7 +41,7 @@ export function EmployeeForm({
     String(initial?.eligible_hours_per_day ?? 9),
   );
   const [startDate, setStartDate] = useState(
-    initial?.start_date ?? new Date().toISOString().slice(0, 10),
+    initial?.start_date ?? todayStr(),
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api as ledgerlyApi, Payment } from "@/lib/ledgerly/api";
+import { api as ledgerlyApi, DeliveryExpense, Payment } from "@/lib/ledgerly/api";
 import { api as shiftlyApi, Employee } from "@/lib/shiftly/api";
 import { api as pantrlyApi, Supplier } from "@/lib/pantrly/api";
 import { Button } from "@/components/admin/ui/button";
@@ -10,7 +10,7 @@ import { Modal } from "@/components/admin/ui/modal";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
 import { PaymentForm, PaymentFormValue } from "@/components/ledgerly/payment-form";
-import { formatINR } from "@/lib/admin/format";
+import { formatDate, formatINR } from "@/lib/admin/format";
 import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { periodBounds, periodLabel, todayStr } from "@/lib/admin/period";
@@ -28,9 +28,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+// One row of the Expenses table: either an editable Ledgerly payment or a
+// read-only costed Pantrly delivery (which P&L already counts as an expense).
+type ExpenseRow =
+  | { kind: "payment"; date: string; payment: Payment }
+  | { kind: "delivery"; date: string; delivery: DeliveryExpense };
+
 export default function PaymentsPage() {
   usePageTitle("Expense");
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryExpense[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,12 +50,14 @@ export default function PaymentsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [paymentsData, employeesData, suppliersData] = await Promise.all([
+      const [paymentsData, deliveriesData, employeesData, suppliersData] = await Promise.all([
         ledgerlyApi.listPayments({ from, to }),
+        ledgerlyApi.listDeliveryExpenses({ from, to }),
         shiftlyApi.listEmployees(),
         pantrlyApi.listSuppliers(),
       ]);
       setPayments(paymentsData ?? []);
+      setDeliveries(deliveriesData ?? []);
       setEmployees(employeesData ?? []);
       setSuppliers(suppliersData ?? []);
     } finally {
@@ -87,13 +96,21 @@ export default function PaymentsPage() {
     await load();
   }
 
+  const supplierName = (id: string | null) => suppliers.find((s) => s.id === id)?.name;
+
+  const rows: ExpenseRow[] = [
+    ...payments.map((p): ExpenseRow => ({ kind: "payment", date: p.payment_date, payment: p })),
+    ...deliveries.map((d): ExpenseRow => ({ kind: "delivery", date: d.purchase_date, delivery: d })),
+  ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl text-navy">Expense</h1>
           <p className="mt-1 text-sm text-navy/60">
-            Every outgoing expense — restaurant expenses, supplier purchases, salaries, or anything else.
+            Every outgoing expense — restaurant expenses, supplier purchases, salaries, or anything else. Costed
+            Pantrly deliveries are listed here automatically — don&apos;t log them again as a supplier purchase.
           </p>
         </div>
         <Button onClick={openCreate}>+ Add expense</Button>
@@ -105,7 +122,7 @@ export default function PaymentsPage() {
 
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>
-      ) : payments.length === 0 ? (
+      ) : rows.length === 0 ? (
         <Card className="p-10 text-center text-navy/50">No expenses logged in {periodLabel("month", anchor)}.</Card>
       ) : (
         <Card className="overflow-x-auto">
@@ -121,25 +138,46 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((p) => (
-                <tr key={p.id} className="border-b border-navy/5 last:border-0">
-                  <td className="px-5 py-3 text-navy/70">{p.payment_date}</td>
-                  <td className="px-5 py-3 text-navy/70">{CATEGORY_LABELS[p.category] ?? p.category}</td>
-                  <td className="px-5 py-3 text-navy">{p.payee || "—"}</td>
-                  <td className="px-5 py-3 font-medium text-navy">{formatINR(p.amount_cents)}</td>
-                  <td className="px-5 py-3 text-navy/50">{p.payment_method || "—"}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="secondary" onClick={() => openEdit(p)}>
-                        Edit
-                      </Button>
-                      <IconButton variant="danger" onClick={() => handleDelete(p.id)} aria-label="Delete expense">
-                        <TrashIcon />
-                      </IconButton>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((row) => {
+                if (row.kind === "delivery") {
+                  const d = row.delivery;
+                  return (
+                    <tr key={`delivery-${d.id}`} className="border-b border-navy/5 last:border-0">
+                      <td className="px-5 py-3 text-navy/70">{formatDate(d.purchase_date)}</td>
+                      <td className="px-5 py-3 text-navy/70">Pantrly delivery</td>
+                      <td className="px-5 py-3 text-navy">
+                        {supplierName(d.supplier_id) ?? "—"}
+                        <span className="block text-xs text-navy/50">
+                          {d.item_name} × {d.quantity}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-medium text-navy">{formatINR(d.cost_cents ?? 0)}</td>
+                      <td className="px-5 py-3 text-navy/50">{d.payment_method || "—"}</td>
+                      <td className="px-5 py-3 text-right text-xs text-navy/50">Managed in Pantrly</td>
+                    </tr>
+                  );
+                }
+                const p = row.payment;
+                return (
+                  <tr key={p.id} className="border-b border-navy/5 last:border-0">
+                    <td className="px-5 py-3 text-navy/70">{formatDate(p.payment_date)}</td>
+                    <td className="px-5 py-3 text-navy/70">{CATEGORY_LABELS[p.category] ?? p.category}</td>
+                    <td className="px-5 py-3 text-navy">{p.payee || "—"}</td>
+                    <td className="px-5 py-3 font-medium text-navy">{formatINR(p.amount_cents)}</td>
+                    <td className="px-5 py-3 text-navy/50">{p.payment_method || "—"}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => openEdit(p)}>
+                          Edit
+                        </Button>
+                        <IconButton variant="danger" onClick={() => handleDelete(p.id)} aria-label="Delete expense">
+                          <TrashIcon />
+                        </IconButton>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </Card>

@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, SupplierItem } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr } from "@/lib/admin/period";
 
 type Recommendation = {
   item: SupplierItem;
@@ -36,11 +31,11 @@ export function SupplierRecommendationsModal({
 
     Promise.all([
       api.listSupplierItems(supplierId),
-      api.stockSummary("week", daysAgo(0)),
+      api.stockSummary("week", daysAgoStr(0)),
       // Two years back is generous enough to find a "last delivery" for
       // any item that's ever been ordered from this supplier, while still
       // being a single bounded query.
-      api.listPurchases({ supplier_id: supplierId, from: daysAgo(730), to: daysAgo(0) }),
+      api.listPurchases({ supplier_id: supplierId, from: daysAgoStr(730), to: daysAgoStr(0) }),
     ])
       .then(([supplierItems, stockData, purchases]) => {
         if (cancelled) return;

@@ -10,15 +10,11 @@ import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { formatINR } from "@/lib/admin/format";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
-import { daysAgoStr as daysAgo, periodBounds, toDateStr, todayStr } from "@/lib/admin/period";
+import { daysAgoStr as daysAgo, periodBounds, todayStr } from "@/lib/admin/period";
 
 // Monday-start week/month bounds and local-date helpers are shared
 // (lib/admin/period.ts) — they match every backend range endpoint (pnl,
 // stock summary), so numbers here line up with what those apps show.
-function fmt(d: Date) {
-  return toDateStr(d);
-}
-
 function normalizeMethod(method: string): "cash" | "card" | "upi" | "other" {
   const m = method.trim().toLowerCase();
   return m === "cash" || m === "card" || m === "upi" ? m : "other";
@@ -76,7 +72,7 @@ export default function IntellyOverviewPage() {
     let cancelled = false;
     setLoading(true);
     const lookbackFrom = daysAgo(WEEKDAY_LOOKBACK_DAYS);
-    const lookbackTo = fmt(new Date());
+    const lookbackTo = todayStr();
     const costLookbackFrom = daysAgo(90);
 
     Promise.all([
@@ -86,8 +82,8 @@ export default function IntellyOverviewPage() {
       shiftlyApi.laborCostSummary(from, to),
       ledgerlyApi.listSales({ from: lookbackFrom, to: lookbackTo }),
       shiftlyApi.laborCostSummary(lookbackFrom, lookbackTo),
-      pantrlyApi.stockSummary("week", fmt(new Date())),
-      pantrlyApi.listPurchases({ from: costLookbackFrom, to: fmt(new Date()) }),
+      pantrlyApi.stockSummary("week", todayStr()),
+      pantrlyApi.listPurchases({ from: costLookbackFrom, to: todayStr() }),
       menulyApi.listComposition(),
     ]).then(([sales, payments, purchases, laborCost, lookbackSales, lookbackLaborCost, stock, recentPurchases, composition]) => {
       if (cancelled) return;

@@ -6,10 +6,11 @@
 // weeks start on Monday, months are calendar months, quarters are calendar
 // quarters (Jan–Mar, Apr–Jun, …). Keep them in sync if the backend changes.
 //
-// All dates are plain "YYYY-MM-DD" strings built from *local* date
-// components — never `toISOString()`, which converts to UTC and lands on the
-// previous day for anything before 05:30 IST (and for every local-midnight
-// Date, e.g. "first of the month").
+// All dates are plain "YYYY-MM-DD" calendar strings. "Today" is India's
+// date (IST) via `todayStr()`; date math is done on local-midnight Dates
+// built from those strings and read back with local components — never
+// `toISOString()`, which converts to UTC and lands on the previous day for
+// anything before 05:30 IST (and for every local-midnight Date).
 
 export type PeriodType = "day" | "week" | "month" | "quarter";
 
@@ -30,14 +31,29 @@ export function parseDateStr(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** Today's local date as YYYY-MM-DD. */
-export function todayStr(): string {
-  return toDateStr(new Date());
+// The restaurant operates in India, so "today" is always India's calendar
+// date (Asia/Kolkata, UTC+5:30, no DST), whatever timezone the viewer's
+// browser/OS is set to. en-CA formats as YYYY-MM-DD.
+const IST_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** India's (IST) calendar date for an instant, as YYYY-MM-DD. */
+export function istDateStr(d: Date): string {
+  return IST_DATE.format(d);
 }
 
-/** Local date `n` days before today, as YYYY-MM-DD. */
+/** Today's date in India (IST) as YYYY-MM-DD. */
+export function todayStr(): string {
+  return istDateStr(new Date());
+}
+
+/** The IST date `n` days before today, as YYYY-MM-DD. */
 export function daysAgoStr(n: number): string {
-  const d = new Date();
+  const d = parseDateStr(todayStr());
   return toDateStr(new Date(d.getFullYear(), d.getMonth(), d.getDate() - n));
 }
 

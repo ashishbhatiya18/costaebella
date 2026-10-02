@@ -60,8 +60,17 @@ function formatMonthLabel(month: string) {
   return `${MONTH_NAMES[monthNum - 1]} ${year}`;
 }
 
+// "YYYY-MM-DD" as "02 Oct 2026" — the same Indian day-month-year format
+// the admin UI uses (lib/admin/format.ts formatDate), built by hand so the
+// output is plain ASCII the PDF's standard fonts can render.
+function formatDate(ymd: string) {
+  const [year, monthNum, day] = ymd.split("-").map(Number);
+  if (!year || !monthNum || !day) return ymd;
+  return `${String(day).padStart(2, "0")} ${MONTH_NAMES[monthNum - 1].slice(0, 3)} ${year}`;
+}
+
 function formatGeneratedAt(d: Date) {
-  return `${istDateString(d)} ${formatTime(d.toISOString())} IST`;
+  return `${formatDate(istDateString(d))}, ${formatTime(d.toISOString())} IST`;
 }
 
 function formatSessions(sessions: { login: string; logout: string | null }[] | undefined) {
@@ -185,7 +194,7 @@ export function buildPayoutReportPdf(employeeName: string, month: string, payout
     startY: dailyStartY,
     head: [["Date", "Check-in / out", "Category", "Raw hrs", "Rounded hrs", "Pay"]],
     body: breakdownSoFar.map((d) => [
-      d.date,
+      formatDate(d.date),
       formatSessions(d.sessions),
       d.category,
       d.raw_hours.toFixed(2),

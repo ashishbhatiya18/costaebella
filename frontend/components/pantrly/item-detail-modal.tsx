@@ -3,22 +3,18 @@
 import { useEffect, useState } from "react";
 import { api, Purchase, StockLog } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
+import { daysAgoStr, periodLabel } from "@/lib/admin/period";
+import { formatDate } from "@/lib/admin/format";
 
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
-
-function isoWeekLabel(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  const onejan = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
-  return `${d.getFullYear()}-W${String(week).padStart(2, "0")}`;
+// Buckets are keyed by their display label — "28 Sep – 4 Oct 2026" (the
+// Monday-start week every admin page uses) or "Oct 2026" — which is unique
+// per period, so it doubles as the grouping key.
+function weekLabel(dateStr: string) {
+  return periodLabel("week", dateStr);
 }
 
 function monthLabel(dateStr: string) {
-  return dateStr.slice(0, 7);
+  return periodLabel("month", dateStr);
 }
 
 type Bucket = { label: string; consumed: number };
@@ -60,8 +56,8 @@ export function ItemDetailModal({
   useEffect(() => {
     if (!itemId) return;
     setLoading(true);
-    const from = daysAgo(90);
-    const to = daysAgo(0);
+    const from = daysAgoStr(90);
+    const to = daysAgoStr(0);
     Promise.all([
       api.listStockLogs({ item_id: itemId, from, to }),
       api.listPurchases({ item_id: itemId, from, to }),
@@ -78,7 +74,7 @@ export function ItemDetailModal({
     .filter((l): l is { date: string; qty: number } => l.qty != null)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const weekly = bucketConsumption(countedLogs, purchases, isoWeekLabel).slice(-8);
+  const weekly = bucketConsumption(countedLogs, purchases, weekLabel).slice(-8);
   const monthly = bucketConsumption(countedLogs, purchases, monthLabel).slice(-6);
 
   return (
@@ -142,7 +138,7 @@ export function ItemDetailModal({
                 <tbody>
                   {purchases.map((p) => (
                     <tr key={p.id} className="border-b border-navy/5 last:border-0">
-                      <td className="py-1.5 text-navy/70">{p.purchase_date}</td>
+                      <td className="py-1.5 text-navy/70">{formatDate(p.purchase_date)}</td>
                       <td className="py-1.5 text-right font-medium text-navy">
                         {p.quantity} {unit}
                       </td>

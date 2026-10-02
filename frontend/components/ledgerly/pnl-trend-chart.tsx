@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PnlTrendPoint } from "@/lib/ledgerly/api";
 import { Card } from "@/components/admin/ui/card";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { formatDateRange } from "@/lib/admin/format";
 
 // Validated categorical slots (blue/orange/aqua) — the first three from the
 // design system's default theme, which pass all-pairs CVD/contrast checks
@@ -262,7 +263,7 @@ export function PnlTrendChart({
         {hovered && (
           <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-lg border border-navy/10 bg-white px-3 py-2 text-xs shadow-md">
             <p className="font-medium text-navy">
-              {hovered.from} – {hovered.to}
+              {formatDateRange(hovered.from, hovered.to)}
             </p>
             <p className="mt-1" style={{ color: COLOR_REVENUE }}>
               Income: {compactINR(hovered.revenue_cents)}

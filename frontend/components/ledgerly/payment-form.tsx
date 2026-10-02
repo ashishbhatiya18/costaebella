@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
 import { Category, Payment } from "@/lib/ledgerly/api";
+import { todayStr } from "@/lib/admin/period";
 
 export type PaymentFormValue = {
   category: Category;
@@ -29,10 +30,6 @@ const CATEGORY_OPTIONS: { label: string; value: Category }[] = [
   { label: "Other", value: "other" },
 ];
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function PaymentForm({
   initial,
   employees,
@@ -50,7 +47,7 @@ export function PaymentForm({
 }) {
   const [category, setCategory] = useState<Category>(initial?.category ?? "other");
   const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
-  const [date, setDate] = useState(initial?.payment_date ?? today());
+  const [date, setDate] = useState(initial?.payment_date ?? todayStr());
   const [method, setMethod] = useState(initial?.payment_method ?? "cash");
   const [payee, setPayee] = useState(initial?.payee ?? "");
   const [employeeId, setEmployeeId] = useState(initial?.employee_id ?? "");

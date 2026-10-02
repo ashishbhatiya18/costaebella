@@ -3,13 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, Purchase } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
-import { formatINR } from "@/lib/admin/format";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { formatDate, formatINR } from "@/lib/admin/format";
+import { daysAgoStr } from "@/lib/admin/period";
 
 type Point = { date: string; unitPriceRupees: number; quantity: number; costCents: number };
 
@@ -45,7 +40,7 @@ export function PriceTrendModal({
     if (!itemId) return;
     setLoading(true);
     api
-      .listPurchases({ item_id: itemId, from: daysAgo(365), to: daysAgo(0) })
+      .listPurchases({ item_id: itemId, from: daysAgoStr(365), to: daysAgoStr(0) })
       .then((data) => setPurchases(data ?? []))
       .finally(() => setLoading(false));
   }, [itemId]);
@@ -110,7 +105,7 @@ export function PriceTrendModal({
               {plotted.map((p) => (
                 <circle key={p.point.date + p.point.costCents} cx={p.x} cy={p.y} r={4} className="fill-teal">
                   <title>
-                    {p.point.date}: {formatINR(Math.round(p.point.unitPriceRupees * 100))} / {unit}
+                    {formatDate(p.point.date)}: {formatINR(Math.round(p.point.unitPriceRupees * 100))} / {unit}
                   </title>
                 </circle>
               ))}
@@ -129,7 +124,7 @@ export function PriceTrendModal({
             <tbody>
               {[...points].reverse().map((p) => (
                 <tr key={p.date + p.costCents} className="border-b border-navy/5 last:border-0">
-                  <td className="py-1.5 text-navy/70">{p.date}</td>
+                  <td className="py-1.5 text-navy/70">{formatDate(p.date)}</td>
                   <td className="py-1.5 text-right text-navy/70">
                     {p.quantity} {unit}
                   </td>

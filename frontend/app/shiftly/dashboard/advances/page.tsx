@@ -8,7 +8,7 @@ import { Modal } from "@/components/admin/ui/modal";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
 import { AdvanceForm, AdvanceFormValue } from "@/components/shiftly/advance-form";
-import { formatINR } from "@/lib/admin/format";
+import { formatDate, formatINR } from "@/lib/admin/format";
 import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { periodBounds, periodLabel, todayStr } from "@/lib/admin/period";
@@ -118,7 +118,7 @@ export default function AdvancesPage() {
                 <tbody>
                   {advances.map((a) => (
                     <tr key={a.id} className="border-b border-navy/5 last:border-0">
-                      <td className="px-5 py-3 text-navy/70">{a.advance_date}</td>
+                      <td className="px-5 py-3 text-navy/70">{formatDate(a.advance_date)}</td>
                       <td className="px-5 py-3 text-navy">{employeeName(a.employee_id)}</td>
                       <td className="px-5 py-3 font-medium text-navy">{formatINR(a.amount_cents)}</td>
                       <td className="px-5 py-3 text-navy/50">{a.notes || "—"}</td>

@@ -4,12 +4,7 @@ import { useEffect, useState } from "react";
 import { api, StockLog } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
 import { StockLogsTable } from "@/components/pantrly/stock-logs-table";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr } from "@/lib/admin/period";
 
 export function StockLogsModal({
   itemId,
@@ -29,7 +24,7 @@ export function StockLogsModal({
   function load(currentItemId: string) {
     setLoading(true);
     return api
-      .listStockLogs({ item_id: currentItemId, from: daysAgo(90), to: daysAgo(0) })
+      .listStockLogs({ item_id: currentItemId, from: daysAgoStr(90), to: daysAgoStr(0) })
       .then((data) => setLogs((data ?? []).slice().reverse()))
       .finally(() => setLoading(false));
   }

@@ -270,3 +270,29 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
 }
+
+// Purchases handles GET /api/ledgerly/purchases?from=YYYY-MM-DD&to=YYYY-MM-DD
+// — costed Pantrly deliveries in range, so Ledgerly's Expenses list and Tax
+// Export can show the same delivery costs P&L already counts. Read-only:
+// deliveries are recorded/deleted in Pantrly. Lives under Ledgerly's
+// owner/accounting gate since accounting can't reach /api/pantrly/**.
+func (h *Handler) Purchases(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from, to := q.Get("from"), q.Get("to")
+	for _, d := range []string{from, to} {
+		if _, err := time.Parse("2006-01-02", d); err != nil {
+			http.Error(w, "from and to are required, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+	}
+
+	purchases, err := h.stock.ListPurchasesWithCost(r.Context(), from, to)
+	if err != nil {
+		http.Error(w, "failed to list purchases", http.StatusInternalServerError)
+		return
+	}
+	if purchases == nil {
+		purchases = []stock.PurchaseWithItem{}
+	}
+	writeJSON(w, http.StatusOK, purchases)
+}

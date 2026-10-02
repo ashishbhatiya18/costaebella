@@ -105,6 +105,13 @@ func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cost_cents is required and must be positive", http.StatusBadRequest)
 		return
 	}
+	if req.PaymentMethod == "" {
+		req.PaymentMethod = "upi"
+	}
+	if !validPaymentMethods[req.PaymentMethod] {
+		http.Error(w, "payment_method must be one of: cash, bank, upi, other", http.StatusBadRequest)
+		return
+	}
 	if req.PurchaseDate == "" {
 		req.PurchaseDate = time.Now().Format("2006-01-02")
 	}

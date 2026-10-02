@@ -3,6 +3,7 @@
 import { StockLog } from "@/lib/pantrly/api";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
+import { formatDate } from "@/lib/admin/format";
 
 export function StockLogsTable({
   logs,
@@ -32,7 +33,7 @@ export function StockLogsTable({
       <tbody>
         {logs.map((l) => (
           <tr key={l.id} className="border-b border-navy/5 last:border-0">
-            <td className="py-1.5 text-navy/70">{l.log_date}</td>
+            <td className="py-1.5 text-navy/70">{formatDate(l.log_date)}</td>
             <td className="py-1.5 text-right font-medium text-navy">
               {l.opening_qty != null ? `${l.opening_qty} ${unit}` : "—"}
             </td>

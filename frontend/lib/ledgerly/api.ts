@@ -48,6 +48,20 @@ export type Sale = {
   item_names: string[];
 };
 
+// A costed Pantrly delivery (GET /api/ledgerly/purchases). Read-only on the
+// Ledgerly side — recorded and deleted from Pantrly's Items/Deliveries pages.
+export type DeliveryExpense = {
+  id: string;
+  item_id: string;
+  item_name: string;
+  supplier_id: string | null;
+  quantity: number;
+  cost_cents: number | null;
+  payment_method: string;
+  purchase_date: string;
+  notes: string;
+};
+
 export type PnlSummary = {
   range: string;
   from: string;
@@ -141,6 +155,11 @@ export const api = {
     const q = new URLSearchParams({ from: params.from, to: params.to });
     if (params.category) q.set("category", params.category);
     return request<Payment[]>(`/api/ledgerly/payments/?${q.toString()}`);
+  },
+
+  listDeliveryExpenses: (params: { from: string; to: string }) => {
+    const q = new URLSearchParams({ from: params.from, to: params.to });
+    return request<DeliveryExpense[]>(`/api/ledgerly/purchases?${q.toString()}`);
   },
 
   createPayment: (p: Partial<Payment>) =>

@@ -7,7 +7,7 @@ import { Input } from "@/components/admin/ui/input";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
-import { formatINR } from "@/lib/admin/format";
+import { formatDate, formatDateRange, formatINR } from "@/lib/admin/format";
 import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 // Shared Monday-start week/month bucketing — mirrors the backend's
@@ -82,7 +82,7 @@ export default function DeliveriesPage() {
         <div>
           <h1 className="font-display text-2xl text-navy">Past Deliveries</h1>
           <p className="mt-1 text-sm text-navy/60">
-            All recorded deliveries across items and suppliers ({from} – {to}).
+            All recorded deliveries across items and suppliers ({formatDateRange(from, to)}).
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -131,6 +131,7 @@ export default function DeliveriesPage() {
                 <th className="px-5 py-3">Supplier</th>
                 <th className="px-5 py-3">Quantity</th>
                 <th className="px-5 py-3">Cost</th>
+                <th className="px-5 py-3">Method</th>
                 <th className="px-5 py-3">Notes</th>
                 <th className="px-5 py-3"></th>
               </tr>
@@ -141,7 +142,7 @@ export default function DeliveriesPage() {
                 const supplier = p.supplier_id ? supplierById.get(p.supplier_id) : null;
                 return (
                   <tr key={p.id} className="border-b border-navy/5 last:border-0">
-                    <td className="px-5 py-3 text-navy/70">{p.purchase_date}</td>
+                    <td className="px-5 py-3 text-navy/70">{formatDate(p.purchase_date)}</td>
                     <td className="px-5 py-3 font-medium text-navy">{item?.name ?? "Unknown item"}</td>
                     <td className="px-5 py-3 text-navy/70">{supplier?.name ?? "—"}</td>
                     <td className="px-5 py-3 text-navy/80">
@@ -150,6 +151,7 @@ export default function DeliveriesPage() {
                     <td className="px-5 py-3 text-navy/50">
                       {p.cost_cents != null ? formatINR(p.cost_cents) : "—"}
                     </td>
+                    <td className="px-5 py-3 text-navy/50">{p.payment_method || "—"}</td>
                     <td className="px-5 py-3 text-navy/40">{p.notes || ""}</td>
                     <td className="px-5 py-3 text-right">
                       <IconButton

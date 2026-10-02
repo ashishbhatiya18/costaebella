@@ -8,7 +8,7 @@ import { Button } from "@/components/admin/ui/button";
 import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { useAuth } from "@/lib/admin/auth-context";
-import { todayStr } from "@/lib/admin/period";
+import { periodLabel, todayStr } from "@/lib/admin/period";
 
 function formatMoney(cents: number) {
   return (cents / 100).toLocaleString("en-IN", {
@@ -80,7 +80,7 @@ export default function PayoutSummaryPage() {
       ) : (
         <>
           <Card className="mb-4 flex items-center justify-between p-5">
-            <span className="text-sm text-navy/60">Total net payout for {data?.month}</span>
+            <span className="text-sm text-navy/60">Total net payout for {periodLabel("month", anchor)}</span>
             <span className="text-2xl font-semibold text-navy">{formatMoney(total)}</span>
           </Card>
 

@@ -19,23 +19,25 @@ type LogRequest struct {
 }
 
 type Purchase struct {
-	ID           string    `json:"id"`
-	ItemID       string    `json:"item_id"`
-	SupplierID   *string   `json:"supplier_id"`
-	Quantity     float64   `json:"quantity"`
-	CostCents    *int64    `json:"cost_cents"`
-	PurchaseDate string    `json:"purchase_date"` // YYYY-MM-DD
-	Notes        string    `json:"notes"`
-	CreatedAt    time.Time `json:"created_at,omitempty"`
+	ID            string    `json:"id"`
+	ItemID        string    `json:"item_id"`
+	SupplierID    *string   `json:"supplier_id"`
+	Quantity      float64   `json:"quantity"`
+	CostCents     *int64    `json:"cost_cents"`
+	PaymentMethod string    `json:"payment_method"` // cash, bank, upi, other
+	PurchaseDate  string    `json:"purchase_date"`  // YYYY-MM-DD
+	Notes         string    `json:"notes"`
+	CreatedAt     time.Time `json:"created_at,omitempty"`
 }
 
 type PurchaseRequest struct {
-	ItemID       string  `json:"item_id"`
-	SupplierID   *string `json:"supplier_id"`
-	Quantity     float64 `json:"quantity"`
-	CostCents    *int64  `json:"cost_cents"`
-	PurchaseDate string  `json:"purchase_date"` // YYYY-MM-DD, defaults to today if empty
-	Notes        string  `json:"notes"`
+	ItemID        string  `json:"item_id"`
+	SupplierID    *string `json:"supplier_id"`
+	Quantity      float64 `json:"quantity"`
+	CostCents     *int64  `json:"cost_cents"`
+	PaymentMethod string  `json:"payment_method"` // cash, bank, upi, other; defaults to upi if empty
+	PurchaseDate  string  `json:"purchase_date"`  // YYYY-MM-DD, defaults to today if empty
+	Notes         string  `json:"notes"`
 }
 
 // PurchaseWithItem is a purchase joined with its item's name — used by
@@ -64,3 +66,7 @@ type ItemStock struct {
 	// per week/day should divide by this rather than the requested range.
 	RangeDays *int `json:"range_days"`
 }
+
+// validPaymentMethods mirrors the payment methods Ledgerly's expense form
+// offers, so a delivery's method reads the same in Ledgerly's Expense list.
+var validPaymentMethods = map[string]bool{"cash": true, "bank": true, "upi": true, "other": true}

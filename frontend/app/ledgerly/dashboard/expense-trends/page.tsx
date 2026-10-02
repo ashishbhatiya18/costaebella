@@ -16,6 +16,7 @@ import { ExpenseTrendChart, monthLabel } from "@/components/ledgerly/expense-tre
 import { formatINR } from "@/lib/admin/format";
 import { clsx } from "@/lib/admin/clsx";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { periodBounds, todayStr } from "@/lib/admin/period";
 
 // Typed against Category so adding a backend category fails the type check
 // here until it's labelled (keep in sync with payment.ValidCategories).
@@ -45,8 +46,7 @@ function ymd(d: Date) {
 }
 
 function currentMonthStart() {
-  const d = new Date();
-  return ymd(new Date(d.getFullYear(), d.getMonth(), 1));
+  return periodBounds("month", todayStr()).from;
 }
 
 function shiftMonths(anchor: string, delta: number) {

@@ -11,6 +11,7 @@ import { getShiftSessionsForDate } from "@/lib/shiftly/shift-times";
 import { clsx } from "@/lib/admin/clsx";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { todayStr } from "@/lib/admin/period";
+import { formatDate, formatDateRange } from "@/lib/admin/format";
 
 type RangeType = "week" | "month" | "quarter";
 
@@ -225,7 +226,7 @@ export default function AttendanceSummaryPage() {
         <div>
           <h1 className="font-display text-2xl text-navy">Attendance Summary</h1>
           <p className="mt-1 text-sm text-navy/60">
-            {data ? `${data.from} → ${data.to}` : "Loading range…"}
+            {data ? formatDateRange(data.from, data.to) : "Loading range…"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -296,7 +297,7 @@ export default function AttendanceSummaryPage() {
                     }
                     onTouchMove={handleTouchMove}
                     onClick={() => handleDayClick(emp.employee_id, day.date)}
-                    title={`${day.date} — ${style.label}${
+                    title={`${formatDate(day.date)} — ${style.label}${
                       day.hours_worked > 0
                         ? ` (${day.hours_worked.toFixed(1)}h worked, rounded to ${day.rounded_hours}h)`
                         : ""

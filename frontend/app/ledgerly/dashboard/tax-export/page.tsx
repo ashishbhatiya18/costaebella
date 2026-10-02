@@ -9,7 +9,7 @@
 // once a GSTIN and scheme are confirmed.
 
 import { useEffect, useState } from "react";
-import { api, Payment, Sale } from "@/lib/ledgerly/api";
+import { api, DeliveryExpense, Payment, Sale } from "@/lib/ledgerly/api";
 import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
@@ -54,21 +54,30 @@ export default function TaxExportPage() {
   }
   const [sales, setSales] = useState<Sale[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryExpense[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (access !== "allowed") return;
     setLoading(true);
-    Promise.all([api.listSales({ from, to }), api.listPayments({ from, to })])
-      .then(([s, p]) => {
+    Promise.all([
+      api.listSales({ from, to }),
+      api.listPayments({ from, to }),
+      api.listDeliveryExpenses({ from, to }),
+    ])
+      .then(([s, p, d]) => {
         setSales(s ?? []);
         setPayments(p ?? []);
+        setDeliveries(d ?? []);
       })
       .finally(() => setLoading(false));
   }, [access, from, to]);
 
   const revenueTotalCents = sales.reduce((sum, s) => sum + s.amount_cents, 0);
-  const expenseTotalCents = payments.reduce((sum, p) => sum + p.amount_cents, 0);
+  // Costed Pantrly deliveries count as expenses here too, matching P&L.
+  const expenseTotalCents =
+    payments.reduce((sum, p) => sum + p.amount_cents, 0) +
+    deliveries.reduce((sum, d) => sum + (d.cost_cents ?? 0), 0);
 
   function exportRevenue() {
     const header = ["date", "payment_method", "amount_inr", "items", "notes"];
@@ -93,6 +102,10 @@ export default function TaxExportPage() {
     for (const p of payments) {
       rows.push([p.payment_date, p.category, p.payee ?? "", p.payment_method, toRupees(p.amount_cents), p.notes ?? ""]);
     }
+    for (const d of deliveries) {
+      const notes = [`${d.item_name} × ${d.quantity}`, d.notes].filter(Boolean).join(" — ");
+      rows.push([d.purchase_date, "pantrly_delivery", "", d.payment_method, toRupees(d.cost_cents ?? 0), notes]);
+    }
     rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     downloadCsv(`ledgerly-expenses_${from}_to_${to}.csv`, rows);
   }
@@ -106,6 +119,7 @@ export default function TaxExportPage() {
     }
     for (const s of sales) bucket(s.sale_date).revenue += s.amount_cents;
     for (const p of payments) bucket(p.payment_date).expenses += p.amount_cents;
+    for (const d of deliveries) bucket(d.purchase_date).expenses += d.cost_cents ?? 0;
 
     const rows: string[][] = [["month", "revenue_inr", "expenses_inr", "net_inr"]];
     for (const [month, totals] of [...months.entries()].sort()) {

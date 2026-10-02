@@ -5,12 +5,8 @@ import { api, WastageLog } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr } from "@/lib/admin/period";
+import { formatDate } from "@/lib/admin/format";
 
 export function WastageModal({
   itemId,
@@ -30,7 +26,7 @@ export function WastageModal({
   function load(currentItemId: string) {
     setLoading(true);
     return api
-      .listWastage({ item_id: currentItemId, from: daysAgo(90), to: daysAgo(0) })
+      .listWastage({ item_id: currentItemId, from: daysAgoStr(90), to: daysAgoStr(0) })
       .then((data) => setLogs(data ?? []))
       .finally(() => setLoading(false));
   }
@@ -63,7 +59,7 @@ export function WastageModal({
           <tbody>
             {logs.map((l) => (
               <tr key={l.id} className="border-b border-navy/5 last:border-0">
-                <td className="py-1.5 text-navy/70">{l.wastage_date}</td>
+                <td className="py-1.5 text-navy/70">{formatDate(l.wastage_date)}</td>
                 <td className="py-1.5 text-right font-medium text-navy">
                   {l.quantity} {unit}
                 </td>

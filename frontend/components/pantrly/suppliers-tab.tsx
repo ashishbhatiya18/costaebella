@@ -10,12 +10,7 @@ import { TrashIcon } from "@/components/admin/ui/icons";
 import { SupplierForm, SupplierFormValue } from "@/components/pantrly/supplier-form";
 import { SupplierDeliveriesModal } from "@/components/pantrly/supplier-deliveries-modal";
 import { SupplierRecommendationsModal } from "@/components/pantrly/supplier-recommendations-modal";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr } from "@/lib/admin/period";
 
 export function SuppliersTab({
   suppliers,
@@ -35,7 +30,7 @@ export function SuppliersTab({
 
   async function loadDeliveryData() {
     const [purchasesData, itemsData] = await Promise.all([
-      api.listPurchases({ from: daysAgo(90), to: daysAgo(0) }),
+      api.listPurchases({ from: daysAgoStr(90), to: daysAgoStr(0) }),
       api.listItems(),
     ]);
     setPurchases(purchasesData ?? []);

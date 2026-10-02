@@ -41,6 +41,7 @@ export type Purchase = {
   supplier_id: string | null;
   quantity: number;
   cost_cents: number | null;
+  payment_method: string;
   purchase_date: string;
   notes: string;
 };
@@ -163,6 +164,7 @@ export const api = {
     supplier_id?: string | null;
     quantity: number;
     cost_cents: number;
+    payment_method?: string;
     purchase_date?: string;
     notes?: string;
   }) =>

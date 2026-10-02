@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { clsx } from "@/lib/admin/clsx";
 import {
   PeriodType,
@@ -31,6 +32,12 @@ function Chevron({ direction }: { direction: "left" | "right" }) {
 //
 // "Next" stops at the current period by default — every period-scoped view
 // in the admin is historical data, so there's nothing to see in the future.
+//
+// Months get a richer picker: ‹ [Aug 2026] [Sep 2026] [Oct 2026] › — three
+// directly clickable months (the current month and the two before it by
+// default), with the arrows stepping one month back/forward and the
+// three-month window sliding along to keep the selection in view. No
+// "This month" shortcut here — the › arrow gets back to it.
 export function PeriodNavigator({
   type,
   anchor,
@@ -50,6 +57,20 @@ export function PeriodNavigator({
   const isCurrent = isCurrentPeriod(type, anchor);
   const next = shiftAnchor(type, anchor, 1);
   const nextDisabled = !allowFuture && (isCurrent || next > todayStr());
+
+  if (type === "month") {
+    return (
+      <MonthWindow
+        anchor={anchor}
+        onChange={onChange}
+        nextDisabled={nextDisabled}
+        // A custom label (e.g. "Custom range" for free from/to dates) means
+        // the range isn't exactly one month, so no month chip is selected.
+        hasSelection={label === undefined || label === periodLabel("month", anchor)}
+        className={className}
+      />
+    );
+  }
 
   return (
     <div className={clsx("inline-flex flex-wrap items-center gap-2", className)}>
@@ -84,6 +105,85 @@ export function PeriodNavigator({
           {currentPeriodLabel(type)}
         </button>
       )}
+    </div>
+  );
+}
+
+const WINDOW_SIZE = 3;
+
+function MonthWindow({
+  anchor,
+  onChange,
+  nextDisabled,
+  hasSelection,
+  className,
+}: {
+  anchor: string;
+  onChange: (anchor: string) => void;
+  nextDisabled: boolean;
+  hasSelection: boolean;
+  className?: string;
+}) {
+  const selected = shiftAnchor("month", anchor, 0); // first of the selected month
+  const currentMonth = shiftAnchor("month", todayStr(), 0);
+
+  // Start (first of month) of the leftmost of the three visible months.
+  // Defaults to ending on the current month (or on the selection, if it's
+  // later); only slides when the selection steps outside the window, so
+  // clicking a visible chip never makes the chips jump around.
+  const [windowStart, setWindowStart] = useState(() =>
+    shiftAnchor("month", selected > currentMonth ? selected : currentMonth, -(WINDOW_SIZE - 1)),
+  );
+  const windowEnd = shiftAnchor("month", windowStart, WINDOW_SIZE - 1);
+  if (selected < windowStart) {
+    setWindowStart(selected);
+  } else if (selected > windowEnd) {
+    setWindowStart(shiftAnchor("month", selected, -(WINDOW_SIZE - 1)));
+  }
+
+  const months = Array.from({ length: WINDOW_SIZE }, (_, i) => shiftAnchor("month", windowStart, i));
+
+  return (
+    <div className={clsx("inline-flex flex-wrap items-center gap-2", className)}>
+      <div className="inline-flex items-center gap-0.5 rounded-xl border border-navy/10 bg-cream/60 p-1">
+        <button
+          type="button"
+          onClick={() => onChange(shiftAnchor("month", anchor, -1))}
+          aria-label="Previous month"
+          className="rounded-lg p-1.5 text-navy/60 transition-colors hover:bg-white hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40"
+        >
+          <Chevron direction="left" />
+        </button>
+        {months.map((m) => {
+          const isSelected = hasSelection && m === selected;
+          const isFuture = m > currentMonth;
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onChange(m)}
+              disabled={isFuture && nextDisabled && !isSelected}
+              aria-pressed={isSelected}
+              className={clsx(
+                "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40",
+                isSelected ? "bg-teal text-white shadow-sm" : "text-navy/60 hover:bg-white hover:text-navy",
+                "disabled:pointer-events-none disabled:text-navy/20",
+              )}
+            >
+              {periodLabel("month", m)}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => onChange(shiftAnchor("month", anchor, 1))}
+          disabled={nextDisabled}
+          aria-label="Next month"
+          className="rounded-lg p-1.5 text-navy/60 transition-colors hover:bg-white hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 disabled:pointer-events-none disabled:text-navy/20"
+        >
+          <Chevron direction="right" />
+        </button>
+      </div>
     </div>
   );
 }

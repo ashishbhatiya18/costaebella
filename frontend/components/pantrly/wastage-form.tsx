@@ -3,16 +3,13 @@
 import { useState } from "react";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
+import { todayStr } from "@/lib/admin/period";
 
 export type WastageFormValue = {
   quantity: number;
   reason: string;
   wastage_date: string;
 };
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function WastageForm({
   unit,
@@ -25,7 +22,7 @@ export function WastageForm({
 }) {
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayStr());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

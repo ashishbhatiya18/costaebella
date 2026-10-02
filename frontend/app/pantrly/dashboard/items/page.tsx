@@ -24,22 +24,13 @@ import { PriceTrendModal } from "@/components/pantrly/price-trend-modal";
 import { MenuImpactModal } from "@/components/pantrly/menu-impact-modal";
 import { StockSummaryList } from "@/components/pantrly/stock-summary-list";
 import { usePageTitle } from "@/lib/admin/use-page-title";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr, todayStr } from "@/lib/admin/period";
 
 // Days since a YYYY-MM-DD date, or null if never counted.
 function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const then = new Date(dateStr + "T00:00:00").getTime();
-  const now = new Date(today() + "T00:00:00").getTime();
+  const now = new Date(todayStr() + "T00:00:00").getTime();
   return Math.round((now - then) / (1000 * 60 * 60 * 24));
 }
 
@@ -119,10 +110,10 @@ export default function ItemsPage() {
       const [itemsData, suppliersData, stockData, avgWindowData] = await Promise.all([
         api.listItems(),
         api.listSuppliers(),
-        api.stockSummary("week", today()),
+        api.stockSummary("week", todayStr()),
         // 4-week lookback so "average per week" smooths over a single
         // unusually light/heavy week rather than just repeating it.
-        api.stockSummaryRange(daysAgo(28), today()),
+        api.stockSummaryRange(daysAgoStr(28), todayStr()),
       ]);
       setItems(itemsData ?? []);
       setSuppliers(suppliersData ?? []);
@@ -152,7 +143,7 @@ export default function ItemsPage() {
       return;
     }
     api
-      .listStockLogs({ item_id: logStockFor.id, from: daysAgo(90), to: daysAgo(0) })
+      .listStockLogs({ item_id: logStockFor.id, from: daysAgoStr(90), to: daysAgoStr(0) })
       .then((data) => setRecentStockLogs((data ?? []).slice().reverse()));
   }, [logStockFor]);
 

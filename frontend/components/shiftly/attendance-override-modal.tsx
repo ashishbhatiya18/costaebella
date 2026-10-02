@@ -6,22 +6,21 @@ import { Modal } from "@/components/admin/ui/modal";
 import { Button } from "@/components/admin/ui/button";
 import { Label } from "@/components/admin/ui/input";
 import { getShiftSessionsForDate } from "@/lib/shiftly/shift-times";
+import { formatDate, fromISTDateTimeInput, toISTDateTimeInput } from "@/lib/admin/format";
 
 type SessionRow = { loginTime: string; logoutTime: string };
 type Mode = "present" | "leave" | "weekly_off";
 
+// datetime-local inputs are read/written as IST wall-clock time, whatever
+// the browser's own timezone.
 function toDatetimeLocal(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
+  return toISTDateTimeInput(iso);
 }
 
 function toIso(datetimeLocal: string): string | null {
   if (!datetimeLocal) return null;
-  return new Date(datetimeLocal).toISOString();
+  return fromISTDateTimeInput(datetimeLocal);
 }
 
 export function AttendanceOverrideModal({
@@ -124,7 +123,7 @@ export function AttendanceOverrideModal({
 
   return (
     <Modal open onClose={onClose} title={`Override attendance — ${employeeName}`}>
-      <p className="mb-4 text-sm text-navy/60">{date}</p>
+      <p className="mb-4 text-sm text-navy/60">{formatDate(date)}</p>
 
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>

@@ -199,6 +199,8 @@ func main() {
 				r.Put("/{id}", paymentHandler.Update)
 				r.Delete("/{id}", paymentHandler.Delete)
 			})
+			lr.Get("/api/ledgerly/purchases", pnlHandler.Purchases)
+
 			lr.Post("/api/ledgerly/revenue/sales", revenueHandler.LogSale)
 			lr.Get("/api/ledgerly/revenue/sales", revenueHandler.ListSales)
 			lr.Delete("/api/ledgerly/revenue/sales/{id}", revenueHandler.DeleteSale)

@@ -6,19 +6,17 @@ import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { clsx } from "@/lib/admin/clsx";
 import { usePageTitle } from "@/lib/admin/use-page-title";
+import { formatDateTime, formatTime, istInstant } from "@/lib/admin/format";
+import { todayStr } from "@/lib/admin/period";
 
 const ACTIVITY_PAGE_SIZE = 10;
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function formatDateLabel(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
-  const isToday = dateStr === today();
+  const isToday = dateStr === todayStr();
   return isToday
-    ? `Today, ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
-    : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    ? `Today, ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+    : d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 }
 
 type AttendanceStatus = "in" | "out" | "none";
@@ -40,7 +38,7 @@ function attendanceStatus(logs: AttendanceLog[] | undefined): AttendanceStatus {
 export default function LogAttendancePage() {
   usePageTitle("Log Attendance");
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayStr());
   const [editingDate, setEditingDate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [customTimeOpen, setCustomTimeOpen] = useState(false);
@@ -119,10 +117,7 @@ export default function LogAttendancePage() {
     try {
       let timeIso: string | undefined;
       if (customTimeOpen && customTime) {
-        const [h, m] = customTime.split(":").map(Number);
-        const dt = new Date(date + "T00:00:00");
-        dt.setHours(h, m, 0, 0);
-        timeIso = dt.toISOString();
+        timeIso = istInstant(date, customTime);
       }
       await api.logAttendance({
         employee_id: selected.id,
@@ -170,9 +165,9 @@ export default function LogAttendancePage() {
             {formatDateLabel(date)}
           </button>
         )}
-        {date !== today() && (
+        {date !== todayStr() && (
           <button
-            onClick={() => setDate(today())}
+            onClick={() => setDate(todayStr())}
             className="text-xs text-teal hover:text-teal/80"
           >
             Reset to today
@@ -280,10 +275,10 @@ export default function LogAttendancePage() {
                 selectedLogs.map((l) => (
                   <p key={l.id}>
                     {l.login_time &&
-                      `In: ${new Date(l.login_time).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}
+                      `In: ${formatTime(l.login_time)}`}
                     {l.login_time && l.logout_time && " · "}
                     {l.logout_time
-                      ? `Out: ${new Date(l.logout_time).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+                      ? `Out: ${formatTime(l.logout_time)}`
                       : l.login_time && " · still open"}
                   </p>
                 ))
@@ -320,12 +315,7 @@ export default function LogAttendancePage() {
                 className={item.field === "login" ? "text-teal" : "text-navy/50"}
               >
                 {item.field === "login" ? "Logged in" : "Logged out"} ·{" "}
-                {new Date(item.at).toLocaleString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatDateTime(item.at)}
               </span>
             </li>
           ))}

@@ -5,12 +5,8 @@ import { api, Item, Purchase } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr } from "@/lib/admin/period";
+import { formatDate } from "@/lib/admin/format";
 
 export function SupplierDeliveriesModal({
   supplierId,
@@ -34,7 +30,7 @@ export function SupplierDeliveriesModal({
   function load() {
     setLoading(true);
     return api
-      .listPurchases({ from: daysAgo(90), to: daysAgo(0) })
+      .listPurchases({ from: daysAgoStr(90), to: daysAgoStr(0) })
       .then((data) => setPurchases(data ?? []))
       .finally(() => setLoading(false));
   }
@@ -73,7 +69,7 @@ export function SupplierDeliveriesModal({
               const item = itemById.get(p.item_id);
               return (
                 <tr key={p.id} className="border-b border-navy/5 last:border-0">
-                  <td className="py-1.5 text-navy/70">{p.purchase_date}</td>
+                  <td className="py-1.5 text-navy/70">{formatDate(p.purchase_date)}</td>
                   <td className="py-1.5 font-medium text-navy">{item?.name ?? "Unknown item"}</td>
                   <td className="py-1.5 text-right text-navy/80">
                     {p.quantity} {item?.unit ?? ""}

@@ -10,6 +10,7 @@ import { TrashIcon } from "@/components/admin/ui/icons";
 import { EmployeeForm, EmployeeFormValue } from "@/components/shiftly/employee-form";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { useAuth } from "@/lib/admin/auth-context";
+import { formatDate } from "@/lib/admin/format";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -136,7 +137,7 @@ export default function EmployeesPage() {
               </div>
 
               <div className="mt-3 space-y-1 text-xs text-navy/50">
-                <div>Start date: {e.start_date}</div>
+                <div>Start date: {formatDate(e.start_date)}</div>
               </div>
 
               <div className="mt-4 flex gap-2 border-t border-navy/10 pt-4">

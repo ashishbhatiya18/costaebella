@@ -74,11 +74,11 @@ func (r *Repo) DeleteLog(ctx context.Context, id string) (bool, error) {
 func (r *Repo) InsertPurchase(ctx context.Context, p PurchaseRequest) (*Purchase, error) {
 	var out Purchase
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO pantrly_purchases (item_id, supplier_id, quantity, cost_cents, purchase_date, notes)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, item_id, supplier_id, quantity, cost_cents, purchase_date::text, notes, created_at`,
-		p.ItemID, p.SupplierID, p.Quantity, p.CostCents, p.PurchaseDate, p.Notes).Scan(
-		&out.ID, &out.ItemID, &out.SupplierID, &out.Quantity, &out.CostCents, &out.PurchaseDate, &out.Notes, &out.CreatedAt)
+		INSERT INTO pantrly_purchases (item_id, supplier_id, quantity, cost_cents, payment_method, purchase_date, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, item_id, supplier_id, quantity, cost_cents, payment_method, purchase_date::text, notes, created_at`,
+		p.ItemID, p.SupplierID, p.Quantity, p.CostCents, p.PaymentMethod, p.PurchaseDate, p.Notes).Scan(
+		&out.ID, &out.ItemID, &out.SupplierID, &out.Quantity, &out.CostCents, &out.PaymentMethod, &out.PurchaseDate, &out.Notes, &out.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert purchase: %w", err)
 	}
@@ -87,7 +87,7 @@ func (r *Repo) InsertPurchase(ctx context.Context, p PurchaseRequest) (*Purchase
 
 func (r *Repo) ListPurchases(ctx context.Context, itemID, supplierID, from, to string) ([]Purchase, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, item_id, supplier_id, quantity, cost_cents, purchase_date::text, notes, created_at
+		SELECT id, item_id, supplier_id, quantity, cost_cents, payment_method, purchase_date::text, notes, created_at
 		FROM pantrly_purchases
 		WHERE purchase_date BETWEEN $1 AND $2
 		  AND ($3 = '' OR item_id::text = $3)
@@ -101,7 +101,7 @@ func (r *Repo) ListPurchases(ctx context.Context, itemID, supplierID, from, to s
 	var out []Purchase
 	for rows.Next() {
 		var p Purchase
-		if err := rows.Scan(&p.ID, &p.ItemID, &p.SupplierID, &p.Quantity, &p.CostCents, &p.PurchaseDate, &p.Notes, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.ItemID, &p.SupplierID, &p.Quantity, &p.CostCents, &p.PaymentMethod, &p.PurchaseDate, &p.Notes, &p.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan purchase: %w", err)
 		}
 		out = append(out, p)
@@ -124,7 +124,7 @@ func (r *Repo) DeletePurchase(ctx context.Context, id string) (bool, error) {
 // fold Pantrly deliveries into its expense summary.
 func (r *Repo) ListPurchasesWithCost(ctx context.Context, from, to string) ([]PurchaseWithItem, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT p.id, p.item_id, p.supplier_id, p.quantity, p.cost_cents, p.purchase_date::text, p.notes, p.created_at, i.name
+		SELECT p.id, p.item_id, p.supplier_id, p.quantity, p.cost_cents, p.payment_method, p.purchase_date::text, p.notes, p.created_at, i.name
 		FROM pantrly_purchases p
 		JOIN pantrly_items i ON i.id = p.item_id
 		WHERE p.purchase_date BETWEEN $1 AND $2 AND p.cost_cents IS NOT NULL
@@ -137,7 +137,7 @@ func (r *Repo) ListPurchasesWithCost(ctx context.Context, from, to string) ([]Pu
 	var out []PurchaseWithItem
 	for rows.Next() {
 		var p PurchaseWithItem
-		if err := rows.Scan(&p.ID, &p.ItemID, &p.SupplierID, &p.Quantity, &p.CostCents, &p.PurchaseDate, &p.Notes, &p.CreatedAt, &p.ItemName); err != nil {
+		if err := rows.Scan(&p.ID, &p.ItemID, &p.SupplierID, &p.Quantity, &p.CostCents, &p.PaymentMethod, &p.PurchaseDate, &p.Notes, &p.CreatedAt, &p.ItemName); err != nil {
 			return nil, fmt.Errorf("scan costed purchase: %w", err)
 		}
 		out = append(out, p)

@@ -5,12 +5,8 @@ import { api, Purchase } from "@/lib/pantrly/api";
 import { Modal } from "@/components/admin/ui/modal";
 import { IconButton } from "@/components/admin/ui/icon-button";
 import { TrashIcon } from "@/components/admin/ui/icons";
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+import { daysAgoStr } from "@/lib/admin/period";
+import { formatDate } from "@/lib/admin/format";
 
 export function DeliveriesModal({
   itemId,
@@ -30,7 +26,7 @@ export function DeliveriesModal({
   function load(currentItemId: string) {
     setLoading(true);
     return api
-      .listPurchases({ item_id: currentItemId, from: daysAgo(90), to: daysAgo(0) })
+      .listPurchases({ item_id: currentItemId, from: daysAgoStr(90), to: daysAgoStr(0) })
       .then((data) => setPurchases(data ?? []))
       .finally(() => setLoading(false));
   }
@@ -63,7 +59,7 @@ export function DeliveriesModal({
           <tbody>
             {purchases.map((p) => (
               <tr key={p.id} className="border-b border-navy/5 last:border-0">
-                <td className="py-1.5 text-navy/70">{p.purchase_date}</td>
+                <td className="py-1.5 text-navy/70">{formatDate(p.purchase_date)}</td>
                 <td className="py-1.5 text-right font-medium text-navy">
                   {p.quantity} {unit}
                 </td>

@@ -4,10 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
 import { ApiError } from "@/lib/pantrly/api";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayStr } from "@/lib/admin/period";
 
 export function LogStockForm({
   unit,
@@ -21,7 +18,7 @@ export function LogStockForm({
   onCancel: () => void;
 }) {
   const [quantity, setQuantity] = useState("");
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayStr());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

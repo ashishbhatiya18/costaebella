@@ -4,18 +4,16 @@ import { useState } from "react";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
 import { Supplier } from "@/lib/pantrly/api";
+import { todayStr } from "@/lib/admin/period";
 
 export type DeliveryFormValue = {
   supplier_id: string | null;
   quantity: number;
   cost_cents: number;
+  payment_method: string;
   purchase_date: string;
   notes: string;
 };
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function RecordDeliveryForm({
   suppliers,
@@ -31,7 +29,8 @@ export function RecordDeliveryForm({
   const [supplierId, setSupplierId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [cost, setCost] = useState("");
-  const [date, setDate] = useState(today());
+  const [method, setMethod] = useState("upi");
+  const [date, setDate] = useState(todayStr());
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +54,7 @@ export function RecordDeliveryForm({
         supplier_id: supplierId || null,
         quantity: qty,
         cost_cents: Math.round(costValue * 100),
+        payment_method: method,
         purchase_date: date,
         notes,
       });
@@ -113,17 +113,33 @@ export function RecordDeliveryForm({
           />
         </div>
       </div>
-      <div>
-        <Label htmlFor="delivery-cost">Cost (₹)</Label>
-        <Input
-          id="delivery-cost"
-          type="number"
-          step="any"
-          min={0}
-          value={cost}
-          onChange={(e) => setCost(e.target.value)}
-          required
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="delivery-cost">Cost (₹)</Label>
+          <Input
+            id="delivery-cost"
+            type="number"
+            step="any"
+            min={0}
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="delivery-method">Payment method</Label>
+          <select
+            id="delivery-method"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            className="w-full rounded-xl border border-navy/15 bg-cream/40 px-3.5 py-2.5 text-sm text-navy outline-none transition-colors focus:border-teal focus:ring-2 focus:ring-teal/20"
+          >
+            <option value="cash">Cash</option>
+            <option value="bank">Bank</option>
+            <option value="upi">UPI</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
       </div>
       <div>
         <Label htmlFor="delivery-notes">Notes</Label>

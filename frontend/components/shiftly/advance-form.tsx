@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
 import { Advance } from "@/lib/shiftly/api";
+import { todayStr } from "@/lib/admin/period";
 
 export type AdvanceFormValue = {
   employee_id: string;
@@ -11,10 +12,6 @@ export type AdvanceFormValue = {
   advance_date: string;
   notes: string;
 };
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function AdvanceForm({
   initial,
@@ -31,7 +28,7 @@ export function AdvanceForm({
 }) {
   const [employeeId, setEmployeeId] = useState(initial?.employee_id ?? employees[0]?.id ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
-  const [date, setDate] = useState(initial?.advance_date ?? today());
+  const [date, setDate] = useState(initial?.advance_date ?? todayStr());
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

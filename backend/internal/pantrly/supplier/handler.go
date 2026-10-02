@@ -59,16 +59,39 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
+// supplierUpdate is Update's request body: a full Supplier, except that
+// is_emergency is optional — a client that doesn't know about the field
+// (an older edit form) leaves it unchanged instead of resetting it to false.
+type supplierUpdate struct {
+	Supplier
+	IsEmergency *bool `json:"is_emergency"`
+}
+
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var s Supplier
-	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+	var req supplierUpdate
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	s := req.Supplier
 	if err := validateSupplier(s); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if req.IsEmergency != nil {
+		s.IsEmergency = *req.IsEmergency
+	} else {
+		existing, err := h.repo.Get(r.Context(), id)
+		if err != nil {
+			http.Error(w, "failed to update supplier", http.StatusInternalServerError)
+			return
+		}
+		if existing == nil {
+			http.Error(w, "supplier not found", http.StatusNotFound)
+			return
+		}
+		s.IsEmergency = existing.IsEmergency
 	}
 	updated, err := h.repo.Update(r.Context(), id, s)
 	if err != nil {

@@ -24,6 +24,9 @@ export type Supplier = {
   phone: string;
   notes: string;
   active: boolean;
+  // Emergency / quick-commerce source (e.g. Blinkit): the Rate Card keeps
+  // its deliveries out of regular rates and lists them as emergency buys.
+  is_emergency: boolean;
 };
 
 export type StockLog = {

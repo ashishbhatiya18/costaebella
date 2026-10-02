@@ -23,6 +23,11 @@ import {
 //
 // A month's rate is quantity-weighted: total cost ÷ total quantity of that
 // month's deliveries, so one small top-up at an odd price doesn't swing it.
+//
+// Deliveries from emergency / quick-commerce suppliers (Supplier
+// is_emergency, e.g. Blinkit) are kept out of the regular rates — they're
+// bought at a premium only when stock runs out — and listed separately with
+// the premium paid over the item's regular rate.
 
 // A rise of this much or more month-on-month is flagged as a price hike.
 const HIKE_PCT = 10;
@@ -73,6 +78,19 @@ type Row = {
 };
 
 type Filter = "all" | "changed" | "hikes" | "check";
+
+type EmergencyBuy = {
+  purchase: Purchase;
+  item: Item;
+  unit: string;
+  supplier: string;
+  rate: number;
+  // The item's regular rate that month, else the closest earlier month in
+  // range, else the closest later one; null if never bought regularly.
+  regularRate: number | null;
+  // Extra paid over buying the same quantity at the regular rate.
+  premium: number | null;
+};
 
 function formatRate(rupees: number) {
   return rupees.toLocaleString("en-IN", {
@@ -130,6 +148,13 @@ export default function RateCardPage() {
     };
   }, [from, to]);
 
+  const emergencySupplierIds = useMemo(
+    () => new Set(suppliers.filter((s) => s.is_emergency).map((s) => s.id)),
+    [suppliers],
+  );
+  const isEmergencyBuy = (p: Purchase) =>
+    p.supplier_id != null && emergencySupplierIds.has(p.supplier_id);
+
   const rows: Row[] = useMemo(() => {
     const itemById = new Map(items.map((i) => [i.id, i]));
     const supplierById = new Map(suppliers.map((s) => [s.id, s.name.trim()]));
@@ -139,6 +164,7 @@ export default function RateCardPage() {
     for (const p of purchases) {
       if (p.cost_cents == null || !(p.quantity > 0)) continue;
       if (!itemById.has(p.item_id)) continue;
+      if (isEmergencyBuy(p)) continue;
       const list = byItem.get(p.item_id) ?? [];
       list.push(p);
       byItem.set(p.item_id, list);
@@ -216,7 +242,61 @@ export default function RateCardPage() {
       if (rank(a) === 0) return b.changePct! - a.changePct!;
       return a.item.name.trim().localeCompare(b.item.name.trim());
     });
-  }, [purchases, items, suppliers, monthStarts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchases, items, suppliers, monthStarts, emergencySupplierIds]);
+
+  const emergencyBuys: EmergencyBuy[] = useMemo(() => {
+    const itemById = new Map(items.map((i) => [i.id, i]));
+    const supplierById = new Map(suppliers.map((s) => [s.id, s.name.trim()]));
+    const monthIndex = new Map(monthStarts.map((m, i) => [m.slice(0, 7), i]));
+    const regularByItem = new Map(rows.map((r) => [r.item.id, r.months]));
+
+    const out: EmergencyBuy[] = [];
+    for (const p of purchases) {
+      if (!isEmergencyBuy(p) || p.cost_cents == null || !(p.quantity > 0))
+        continue;
+      const item = itemById.get(p.item_id);
+      if (!item) continue;
+      const months = regularByItem.get(p.item_id) ?? [];
+      const i = monthIndex.get(p.purchase_date.slice(0, 7)) ?? -1;
+      let regularRate: number | null = months[i]?.rate ?? null;
+      for (let j = i - 1; regularRate == null && j >= 0; j--)
+        regularRate = months[j]?.rate ?? null;
+      for (let j = i + 1; regularRate == null && j < months.length; j++)
+        regularRate = months[j]?.rate ?? null;
+      const cost = p.cost_cents / 100;
+      out.push({
+        purchase: p,
+        item,
+        unit: cleanUnit(item.unit),
+        supplier: p.supplier_id ? (supplierById.get(p.supplier_id) ?? "") : "",
+        rate: cost / p.quantity,
+        regularRate,
+        premium: regularRate == null ? null : cost - p.quantity * regularRate,
+      });
+    }
+    return out.sort((a, b) =>
+      b.purchase.purchase_date.localeCompare(a.purchase.purchase_date),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchases, items, suppliers, monthStarts, rows, emergencySupplierIds]);
+
+  // Per-month totals for the emergency summary line, newest month first.
+  const emergencyByMonth = useMemo(() => {
+    const m = new Map<
+      string,
+      { buys: number; spent: number; premium: number }
+    >();
+    for (const e of emergencyBuys) {
+      const key = e.purchase.purchase_date.slice(0, 7);
+      const t = m.get(key) ?? { buys: 0, spent: 0, premium: 0 };
+      t.buys += 1;
+      t.spent += e.purchase.cost_cents! / 100;
+      t.premium += Math.max(0, e.premium ?? 0);
+      m.set(key, t);
+    }
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [emergencyBuys]);
 
   const hikes = rows.filter(isHike);
   const suspects = rows.filter(needsCheck);
@@ -247,7 +327,8 @@ export default function RateCardPage() {
             deliveries (total cost ÷ total quantity). A rise of {HIKE_PCT}% or
             more on the previous month is flagged as a price hike; a jump of{" "}
             {SUSPECT_UP_PCT}%+ (or a fall of {Math.abs(SUSPECT_DOWN_PCT)}%+) is
-            flagged to check the entry instead.
+            flagged to check the entry instead. Emergency buys (suppliers marked
+            emergency, e.g. Blinkit) are listed separately below.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -443,6 +524,103 @@ export default function RateCardPage() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {!loading && emergencyBuys.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-display text-xl text-navy">Emergency buys</h2>
+          <p className="mt-1 max-w-2xl text-sm text-navy/60">
+            Bought from emergency / quick-commerce suppliers when stock ran out.
+            Kept out of the regular rates above; the premium is what was paid
+            over buying the same quantity at the item&apos;s regular rate.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {emergencyByMonth.map(([month, t]) => (
+              <Card key={month} className="px-4 py-3">
+                <div className="text-xs text-navy/50">
+                  {periodLabel("month", month + "-01")}
+                </div>
+                <div className="mt-0.5 text-sm text-navy">
+                  {t.buys} {t.buys === 1 ? "buy" : "buys"} ·{" "}
+                  {formatRate(t.spent)} spent
+                </div>
+                <div className="text-sm font-medium text-coral">
+                  {formatRate(t.premium)} extra
+                </div>
+              </Card>
+            ))}
+          </div>
+          <Card className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-navy/10 text-left text-xs uppercase tracking-wide text-navy/50">
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Item</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right">
+                    Bought
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right">
+                    Rate
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right">
+                    Regular rate
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right">
+                    Premium
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {emergencyBuys.map((e) => (
+                  <tr
+                    key={e.purchase.id}
+                    className="border-b border-navy/5 last:border-0"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3 text-navy/70">
+                      {formatDate(e.purchase.purchase_date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-navy">
+                        {e.item.name.trim()}
+                      </div>
+                      <div className="text-xs text-navy/50">{e.supplier}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-navy/70">
+                      {e.purchase.quantity} {e.unit} ·{" "}
+                      {formatRate(e.purchase.cost_cents! / 100)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-navy">
+                      {formatRate(e.rate)}/{e.unit}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-navy/70">
+                      {e.regularRate == null ? (
+                        <span className="text-navy/30">no regular buys</span>
+                      ) : (
+                        `${formatRate(e.regularRate)}/${e.unit}`
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                      {e.premium == null ? (
+                        <span className="text-navy/30">—</span>
+                      ) : (
+                        <span
+                          className={
+                            e.premium > 0
+                              ? "font-medium text-coral"
+                              : "text-navy/50"
+                          }
+                        >
+                          {e.premium > 0 ? "+" : ""}
+                          {formatRate(e.premium)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </div>
       )}
     </div>
   );

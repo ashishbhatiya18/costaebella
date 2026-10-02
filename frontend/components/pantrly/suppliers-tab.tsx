@@ -95,7 +95,14 @@ export function SuppliersTab({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {suppliers.map((s) => (
             <Card key={s.id} className="p-5">
-              <h3 className="font-semibold text-navy">{s.name}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-navy">{s.name}</h3>
+                {s.is_emergency && (
+                  <span className="shrink-0 rounded-full bg-coral/10 px-2 py-0.5 text-xs font-medium text-coral">
+                    Emergency
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm text-navy/60">{s.phone || "No phone on file"}</p>
               {s.notes && <p className="mt-2 text-xs text-navy/50">{s.notes}</p>}
               <p className="mt-3 text-xs text-navy/50">

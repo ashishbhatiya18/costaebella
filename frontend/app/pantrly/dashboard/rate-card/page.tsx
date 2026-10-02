@@ -77,7 +77,7 @@ type Row = {
   latestSupplier: string | null;
 };
 
-type Filter = "all" | "changed" | "hikes" | "check";
+type Filter = "all" | "changed" | "hikes" | "check" | "emergency";
 
 type EmergencyBuy = {
   purchase: Purchase;
@@ -301,11 +301,52 @@ export default function RateCardPage() {
   const hikes = rows.filter(isHike);
   const suspects = rows.filter(needsCheck);
 
+  // Emergency buys per item, bucketed by month column — shown inside the
+  // grid under that month's regular rate rather than in a separate table.
+  const emergencyCells = useMemo(() => {
+    const monthIndex = new Map(monthStarts.map((m, i) => [m.slice(0, 7), i]));
+    const byItem = new Map<string, EmergencyBuy[][]>();
+    for (const e of emergencyBuys) {
+      const i = monthIndex.get(e.purchase.purchase_date.slice(0, 7));
+      if (i === undefined) continue;
+      const cells = byItem.get(e.item.id) ?? monthStarts.map(() => []);
+      cells[i].push(e);
+      byItem.set(e.item.id, cells);
+    }
+    return byItem;
+  }, [emergencyBuys, monthStarts]);
+
+  // Regular rows, plus a row for each item only ever bought in an emergency
+  // (no regular rate, so it can't be a hike or a check).
+  const gridRows: Row[] = useMemo(() => {
+    const regular = new Set(rows.map((r) => r.item.id));
+    const extra: Row[] = [];
+    const seen = new Set<string>();
+    for (const e of emergencyBuys) {
+      if (regular.has(e.item.id) || seen.has(e.item.id)) continue;
+      seen.add(e.item.id);
+      // emergencyBuys is newest first, so this is the item's latest buy.
+      extra.push({
+        item: e.item,
+        unit: e.unit,
+        months: monthStarts.map(() => null),
+        changePct: null,
+        mixedUnits: false,
+        latest: e.purchase,
+        latestSupplier: e.supplier || null,
+      });
+    }
+    extra.sort((a, b) => a.item.name.trim().localeCompare(b.item.name.trim()));
+    return [...rows, ...extra];
+  }, [rows, emergencyBuys, monthStarts]);
+
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    return gridRows.filter((r) => {
       if (filter === "hikes" && !isHike(r)) return false;
       if (filter === "check" && !needsCheck(r)) return false;
+      if (filter === "emergency" && !emergencyCells.has(r.item.id))
+        return false;
       if (filter === "changed" && Math.abs(r.changePct ?? 0) < MOVE_PCT)
         return false;
       if (!q) return true;
@@ -315,7 +356,7 @@ export default function RateCardPage() {
         r.item.category.toLowerCase().includes(q)
       );
     });
-  }, [rows, search, filter]);
+  }, [gridRows, search, filter, emergencyCells]);
 
   return (
     <div>
@@ -328,7 +369,9 @@ export default function RateCardPage() {
             more on the previous month is flagged as a price hike; a jump of{" "}
             {SUSPECT_UP_PCT}%+ (or a fall of {Math.abs(SUSPECT_DOWN_PCT)}%+) is
             flagged to check the entry instead. Emergency buys (suppliers marked
-            emergency, e.g. Blinkit) are listed separately below.
+            emergency, e.g. Blinkit) are kept out of the rates and shown in
+            coral under the month they were bought, with the premium paid over
+            the regular rate.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -378,6 +421,21 @@ export default function RateCardPage() {
         </Card>
       )}
 
+      {!loading && emergencyByMonth.length > 0 && (
+        <Card className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-1 p-4 text-sm">
+          <span className="font-medium text-coral">⚡ Emergency buys</span>
+          {emergencyByMonth.map(([month, t]) => (
+            <span key={month} className="text-navy/70">
+              {periodLabel("month", month + "-01")}: {t.buys}{" "}
+              {t.buys === 1 ? "buy" : "buys"} · {formatRate(t.spent)} spent ·{" "}
+              <span className="font-medium text-coral">
+                {formatRate(t.premium)} extra
+              </span>
+            </span>
+          ))}
+        </Card>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="w-full max-w-sm">
           <Input
@@ -393,6 +451,7 @@ export default function RateCardPage() {
             { label: "Price changed", value: "changed" },
             { label: "Hikes only", value: "hikes" },
             { label: "Check entry", value: "check" },
+            { label: "Emergency", value: "emergency" },
           ]}
           value={filter}
           onChange={setFilter}
@@ -401,7 +460,7 @@ export default function RateCardPage() {
 
       {loading ? (
         <p className="text-sm text-navy/60">Loading…</p>
-      ) : rows.length === 0 ? (
+      ) : gridRows.length === 0 ? (
         <Card className="p-10 text-center text-navy/50">
           No costed deliveries in this range.
         </Card>
@@ -447,31 +506,51 @@ export default function RateCardPage() {
                         {r.latestSupplier ? ` · ${r.latestSupplier}` : ""}
                       </div>
                     </td>
-                    {r.months.map((m, i) => (
-                      <td
-                        key={monthStarts[i]}
-                        className="whitespace-nowrap px-4 py-3 text-right tabular-nums"
-                        title={
-                          m
-                            ? `${m.deliveries} ${m.deliveries === 1 ? "delivery" : "deliveries"} · ${m.qty} ${r.unit} for ${formatRate(m.costCents / 100)}`
-                            : undefined
-                        }
-                      >
-                        {m ? (
-                          <>
-                            <div className="text-navy">
-                              {formatRate(m.rate)}
+                    {r.months.map((m, i) => {
+                      const emergencies =
+                        emergencyCells.get(r.item.id)?.[i] ?? [];
+                      return (
+                        <td
+                          key={monthStarts[i]}
+                          className="whitespace-nowrap px-4 py-3 text-right tabular-nums"
+                          title={
+                            m
+                              ? `${m.deliveries} ${m.deliveries === 1 ? "delivery" : "deliveries"} · ${m.qty} ${r.unit} for ${formatRate(m.costCents / 100)}`
+                              : undefined
+                          }
+                        >
+                          {m ? (
+                            <>
+                              <div className="text-navy">
+                                {formatRate(m.rate)}
+                              </div>
+                              <div className="text-xs text-navy/40">
+                                {m.deliveries}{" "}
+                                {m.deliveries === 1 ? "delivery" : "deliveries"}
+                              </div>
+                            </>
+                          ) : emergencies.length === 0 ? (
+                            <span className="text-navy/20">—</span>
+                          ) : null}
+                          {emergencies.map((e) => (
+                            <div
+                              key={e.purchase.id}
+                              className="mt-1 text-xs text-coral"
+                              title={`Emergency buy · ${formatDate(e.purchase.purchase_date)} · ${e.purchase.quantity} ${e.unit} for ${formatRate(e.purchase.cost_cents! / 100)} from ${e.supplier}${e.regularRate != null ? ` · regular rate ${formatRate(e.regularRate)}/${e.unit}` : " · no regular buys"}`}
+                            >
+                              <div>
+                                ⚡ {formatRate(e.rate)} · {e.supplier}
+                              </div>
+                              {e.premium != null && e.premium > 0 && (
+                                <div className="font-medium">
+                                  +{formatRate(e.premium)}
+                                </div>
+                              )}
                             </div>
-                            <div className="text-xs text-navy/40">
-                              {m.deliveries}{" "}
-                              {m.deliveries === 1 ? "delivery" : "deliveries"}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-navy/20">—</span>
-                        )}
-                      </td>
-                    ))}
+                          ))}
+                        </td>
+                      );
+                    })}
                     <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                       {r.changePct == null ? (
                         <span className="text-navy/30">—</span>
@@ -524,103 +603,6 @@ export default function RateCardPage() {
             </tbody>
           </table>
         </Card>
-      )}
-
-      {!loading && emergencyBuys.length > 0 && (
-        <div className="mt-8">
-          <h2 className="font-display text-xl text-navy">Emergency buys</h2>
-          <p className="mt-1 max-w-2xl text-sm text-navy/60">
-            Bought from emergency / quick-commerce suppliers when stock ran out.
-            Kept out of the regular rates above; the premium is what was paid
-            over buying the same quantity at the item&apos;s regular rate.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {emergencyByMonth.map(([month, t]) => (
-              <Card key={month} className="px-4 py-3">
-                <div className="text-xs text-navy/50">
-                  {periodLabel("month", month + "-01")}
-                </div>
-                <div className="mt-0.5 text-sm text-navy">
-                  {t.buys} {t.buys === 1 ? "buy" : "buys"} ·{" "}
-                  {formatRate(t.spent)} spent
-                </div>
-                <div className="text-sm font-medium text-coral">
-                  {formatRate(t.premium)} extra
-                </div>
-              </Card>
-            ))}
-          </div>
-          <Card className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-navy/10 text-left text-xs uppercase tracking-wide text-navy/50">
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Item</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right">
-                    Bought
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right">
-                    Rate
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right">
-                    Regular rate
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right">
-                    Premium
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {emergencyBuys.map((e) => (
-                  <tr
-                    key={e.purchase.id}
-                    className="border-b border-navy/5 last:border-0"
-                  >
-                    <td className="whitespace-nowrap px-4 py-3 text-navy/70">
-                      {formatDate(e.purchase.purchase_date)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-navy">
-                        {e.item.name.trim()}
-                      </div>
-                      <div className="text-xs text-navy/50">{e.supplier}</div>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-navy/70">
-                      {e.purchase.quantity} {e.unit} ·{" "}
-                      {formatRate(e.purchase.cost_cents! / 100)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-navy">
-                      {formatRate(e.rate)}/{e.unit}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-navy/70">
-                      {e.regularRate == null ? (
-                        <span className="text-navy/30">no regular buys</span>
-                      ) : (
-                        `${formatRate(e.regularRate)}/${e.unit}`
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
-                      {e.premium == null ? (
-                        <span className="text-navy/30">—</span>
-                      ) : (
-                        <span
-                          className={
-                            e.premium > 0
-                              ? "font-medium text-coral"
-                              : "text-navy/50"
-                          }
-                        >
-                          {e.premium > 0 ? "+" : ""}
-                          {formatRate(e.premium)}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </div>
       )}
     </div>
   );

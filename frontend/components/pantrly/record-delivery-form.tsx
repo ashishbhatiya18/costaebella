@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/admin/ui/button";
 import { Input, Label } from "@/components/admin/ui/input";
 import { Supplier } from "@/lib/pantrly/api";
-import { todayStr } from "@/lib/admin/period";
+import { OPENING_DATE, todayStr } from "@/lib/admin/period";
+import { formatDate } from "@/lib/admin/format";
 
 export type DeliveryFormValue = {
   supplier_id: string | null;
@@ -45,6 +46,16 @@ export function RecordDeliveryForm({
     const costValue = Number(cost);
     if (!cost || isNaN(costValue) || costValue <= 0) {
       setError("Cost is required.");
+      return;
+    }
+    // A future or pre-opening date is always a slip (e.g. the month left on
+    // the wrong value while typing the day) — catch it before it's saved.
+    if (date > todayStr()) {
+      setError("Date can't be in the future.");
+      return;
+    }
+    if (date < OPENING_DATE) {
+      setError(`Date can't be before the restaurant opened (${formatDate(OPENING_DATE)}).`);
       return;
     }
     setSubmitting(true);
@@ -107,6 +118,8 @@ export function RecordDeliveryForm({
           <Input
             id="delivery-date"
             type="date"
+            min={OPENING_DATE}
+            max={todayStr()}
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required

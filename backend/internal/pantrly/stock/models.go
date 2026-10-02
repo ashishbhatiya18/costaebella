@@ -67,6 +67,15 @@ type ItemStock struct {
 	RangeDays *int `json:"range_days"`
 }
 
+// openingDate is the day Costa È Bella opened — no delivery can predate it.
+// Keep in sync with OPENING_DATE in frontend/lib/admin/period.ts.
+const openingDate = "2026-08-01"
+
+// ist is India Standard Time (UTC+5:30, no DST). "Today" for a delivery is
+// India's date, not the server's (UTC) date. A fixed zone avoids depending
+// on tzdata, which the distroless image doesn't ship.
+var ist = time.FixedZone("IST", 5*60*60+30*60)
+
 // validPaymentMethods mirrors the payment methods Ledgerly's expense form
 // offers, so a delivery's method reads the same in Ledgerly's Expense list.
 var validPaymentMethods = map[string]bool{"cash": true, "bank": true, "upi": true, "other": true}

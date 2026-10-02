@@ -41,6 +41,13 @@ const IST_DATE = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+/**
+ * The day Costa È Bella opened — the earliest date any business record
+ * (delivery, expense, …) can carry. Keep in sync with `openingDate` in
+ * backend/internal/pantrly/stock/models.go.
+ */
+export const OPENING_DATE = "2026-08-01";
+
 /** India's (IST) calendar date for an instant, as YYYY-MM-DD. */
 export function istDateStr(d: Date): string {
   return IST_DATE.format(d);

@@ -112,8 +112,24 @@ func (h *Handler) RecordPurchase(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "payment_method must be one of: cash, bank, upi, other", http.StatusBadRequest)
 		return
 	}
+	today := time.Now().In(ist).Format("2006-01-02")
 	if req.PurchaseDate == "" {
-		req.PurchaseDate = time.Now().Format("2006-01-02")
+		req.PurchaseDate = today
+	}
+	if _, err := time.Parse("2006-01-02", req.PurchaseDate); err != nil {
+		http.Error(w, "invalid purchase_date, expected YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+	// Plain string comparison is safe on YYYY-MM-DD. A future date or one
+	// before the restaurant opened is always a data-entry slip (e.g. the
+	// month left on the wrong value), never a real delivery.
+	if req.PurchaseDate > today {
+		http.Error(w, "purchase_date cannot be in the future", http.StatusBadRequest)
+		return
+	}
+	if req.PurchaseDate < openingDate {
+		http.Error(w, "purchase_date cannot be before the restaurant opened ("+openingDate+")", http.StatusBadRequest)
+		return
 	}
 
 	p, err := h.repo.InsertPurchase(r.Context(), req)

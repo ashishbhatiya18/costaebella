@@ -13,6 +13,7 @@ import { PencilIcon, TrashIcon } from "@/components/admin/ui/icons";
 import { ItemForm, ItemFormValue } from "@/components/pantrly/item-form";
 import { RecordDeliveryForm, DeliveryFormValue } from "@/components/pantrly/record-delivery-form";
 import { LogStockForm } from "@/components/pantrly/log-stock-form";
+import { typicalAmount } from "@/lib/pantrly/count-check";
 import { DeliveriesModal } from "@/components/pantrly/deliveries-modal";
 import { StockLogsModal } from "@/components/pantrly/stock-logs-modal";
 import { StockLogsTable } from "@/components/pantrly/stock-logs-table";
@@ -65,6 +66,7 @@ export default function ItemsPage() {
   const [deliveryFor, setDeliveryFor] = useState<Item | null>(null);
   const [logStockFor, setLogStockFor] = useState<Item | null>(null);
   const [recentStockLogs, setRecentStockLogs] = useState<StockLog[]>([]);
+  const [recentDeliveryQtys, setRecentDeliveryQtys] = useState<number[]>([]);
   const [stockLogsFor, setStockLogsFor] = useState<Item | null>(null);
   const [deliveriesFor, setDeliveriesFor] = useState<Item | null>(null);
   const [wastageFor, setWastageFor] = useState<Item | null>(null);
@@ -140,11 +142,17 @@ export default function ItemsPage() {
   useEffect(() => {
     if (!logStockFor) {
       setRecentStockLogs([]);
+      setRecentDeliveryQtys([]);
       return;
     }
     api
       .listStockLogs({ item_id: logStockFor.id, from: daysAgoStr(90), to: daysAgoStr(0) })
       .then((data) => setRecentStockLogs((data ?? []).slice().reverse()));
+    // Recent delivery sizes help tell the item's usual scale (for the
+    // wrong-unit warning on the count form).
+    api
+      .listPurchases({ item_id: logStockFor.id, from: daysAgoStr(90), to: daysAgoStr(0) })
+      .then((data) => setRecentDeliveryQtys((data ?? []).map((p) => p.quantity)));
   }, [logStockFor]);
 
   function openCreate() {
@@ -401,6 +409,11 @@ export default function ItemsPage() {
             <LogStockForm
               unit={logStockFor.unit}
               currentEstimate={stockByItem.get(logStockFor.id)?.current_stock ?? null}
+              typicalQty={typicalAmount([
+                ...recentStockLogs.flatMap((l) => [l.opening_qty, l.closing_qty]),
+                ...recentDeliveryQtys,
+                logStockFor.par_level,
+              ])}
               onSubmit={handleLogStock}
               onCancel={() => setLogStockFor(null)}
             />

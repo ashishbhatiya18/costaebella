@@ -67,7 +67,7 @@ export default function PayoutSummaryPage() {
       <div className="mb-6">
         <h1 className="font-display text-2xl text-navy">Payout Summary</h1>
         <p className="mt-1 text-sm text-navy/60">
-          Computed as a flat hourly rate — monthly pay ÷ (working days × eligible hours/day) — times hours actually worked.
+          Hourly rate = monthly pay ÷ (days in month × eligible hours/day). Paid for hours worked, plus eligible hours for each weekly off.
         </p>
       </div>
 
@@ -91,7 +91,7 @@ export default function PayoutSummaryPage() {
                   <th className="px-5 py-3 font-medium">Employee</th>
                   <th className="px-5 py-3 font-medium">Hourly rate</th>
                   <th className="px-5 py-3 font-medium">Hours worked</th>
-                  <th className="px-5 py-3 font-medium">Working days</th>
+                  <th className="px-5 py-3 font-medium">Weekly off paid</th>
                   <th className="px-5 py-3 text-right font-medium">Gross pay</th>
                   <th className="px-5 py-3 text-right font-medium">Advance</th>
                   <th className="px-5 py-3 text-right font-medium">Net payout</th>
@@ -104,7 +104,7 @@ export default function PayoutSummaryPage() {
                     <td className="px-5 py-3 font-medium text-navy">{e.employee_name}</td>
                     <td className="px-5 py-3">{formatMoney(e.hourly_rate_cents)}/hr</td>
                     <td className="px-5 py-3">{e.total_hours_worked}h</td>
-                    <td className="px-5 py-3">{e.working_days_in_month}</td>
+                    <td className="px-5 py-3">{e.paid_off_hours}h</td>
                     <td className="px-5 py-3 text-right">{formatMoney(e.gross_pay_cents)}</td>
                     <td className="px-5 py-3 text-right text-coral">
                       {e.advance_cents > 0 ? `- ${formatMoney(e.advance_cents)}` : "—"}

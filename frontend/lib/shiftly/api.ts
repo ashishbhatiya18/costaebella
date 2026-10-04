@@ -192,6 +192,8 @@ export type DailyPayoutLine = {
   sessions: SessionTimes[];
   raw_hours: number;
   rounded_hours: number;
+  paid_off_hours: number; // eligible hours credited for a weekly off
+  overtime_hours: number; // + overtime / - undertime vs eligible hrs; all worked hours on a weekly off
   day_pay_cents: number;
 };
 
@@ -203,9 +205,12 @@ export type EmployeePayout = {
   weekly_off_days: number[]; // 0=Sun..6=Sat
   weekly_off_count: number; // actual occurrences of those weekdays in the period
   eligible_hours_per_day: number;
-  working_days_in_month: number; // integer — total_days - weekly_off_count
+  working_days_in_month: number; // integer — total_days - weekly_off_count (informational)
+  rate_basis_days: number; // fixed 30-day divisor behind hourly_rate_cents
   hourly_rate_cents: number;
   total_hours_worked: number;
+  paid_off_hours: number;
+  paid_off_pay_cents: number;
   gross_pay_cents: number;
   advance_cents: number;
   net_payout_cents: number;

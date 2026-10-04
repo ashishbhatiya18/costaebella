@@ -65,7 +65,12 @@ type DailyPayoutLine struct {
 	Sessions     []SessionTimes `json:"sessions"`
 	RawHours     float64        `json:"raw_hours"`
 	RoundedHours float64        `json:"rounded_hours"`
-	DayPayCents  int64          `json:"day_pay_cents"`
+	PaidOffHours float64        `json:"paid_off_hours"` // eligible hours credited for a weekly off (0 otherwise)
+	// OvertimeHours is rounded hours minus eligible hours on any worked day,
+	// weekly off included (negative = undertime), and 0 on days not worked
+	// (leave/absent are counted as days instead).
+	OvertimeHours float64 `json:"overtime_hours"`
+	DayPayCents   int64   `json:"day_pay_cents"`
 }
 
 // sessionTimesFor lists a day's sessions as login/logout RFC3339 pairs.
@@ -88,17 +93,23 @@ func sessionTimesFor(dayLogs []attendance.Log) []SessionTimes {
 // EmployeePayout summarizes one employee's computed monthly payout under the
 // flat-hourly-rate model:
 //
-//	weekly_off_count      = number of days in the period whose weekday is one
-//	                        of the employee's weekly_off_days (an exact count
-//	                        of actual occurrences that month, not an average)
-//	working_days_in_month = total_days_in_month - weekly_off_count
-//	hourly_rate           = monthly_pay / (working_days_in_month * eligible_hours_per_day)
-//	day_pay               = round_to_nearest_hour(hours_worked_that_day) * hourly_rate
+//	hourly_rate     = monthly_pay / (days_in_month * eligible_hours_per_day)
+//	paid_off_hours  = eligible_hours_per_day on each weekly-off day — scheduled
+//	                  or an admin one-off override — that wasn't worked or
+//	                  marked leave (a worked weekly off is a swapped day)
+//	day_pay         = (round_to_nearest_hour(hours_worked_that_day) + paid_off_hours) * hourly_rate
 //
-// When the employee joined partway through the month, the day range (and so
-// TotalDays/WorkingDaysInMonth) is already restricted to start from their
-// start date — MonthlyPayCents itself is never scaled down, since paying by
-// the hour over fewer working days already accounts for the shorter month.
+// The rate is based on every calendar day of the month (RateBasisDays: 28-31),
+// not just its working days, so a weekly off is paid explicitly as a full
+// eligible day instead of being folded into a higher hourly rate — which
+// keeps overtime (hours beyond eligible on a worked day) at that lower
+// rate. A full month of attendance with every weekly off taken pays exactly
+// monthly_pay.
+//
+// Weekly-off pay is only credited for days up to today (IST), so a
+// mid-month payout doesn't pre-pay future weekly offs. When the employee
+// joined partway through the month, the day range is restricted to start
+// from their start date; MonthlyPayCents itself is never scaled down.
 type EmployeePayout struct {
 	EmployeeID          string            `json:"employee_id"`
 	EmployeeName        string            `json:"employee_name"`
@@ -107,13 +118,29 @@ type EmployeePayout struct {
 	WeeklyOffDays       []int             `json:"weekly_off_days"`
 	WeeklyOffCount      int               `json:"weekly_off_count"` // actual occurrences of those weekdays in the period
 	EligibleHoursPerDay float64           `json:"eligible_hours_per_day"`
-	WorkingDaysInMonth  int               `json:"working_days_in_month"`
+	WorkingDaysInMonth  int               `json:"working_days_in_month"` // total_days - weekly_off_count, informational only
+	RateBasisDays       int               `json:"rate_basis_days"`       // calendar days in the month, the divisor behind HourlyRateCents
 	HourlyRateCents     float64           `json:"hourly_rate_cents"`
 	TotalHoursWorked    float64           `json:"total_hours_worked"`
+	PaidOffHours        float64           `json:"paid_off_hours"` // sum of DailyPayoutLine.PaidOffHours
+	PaidOffPayCents     int64             `json:"paid_off_pay_cents"`
 	GrossPayCents       int64             `json:"gross_pay_cents"`
 	AdvanceCents        int64             `json:"advance_cents"`
 	NetPayoutCents      int64             `json:"net_payout_cents"`
 	DailyBreakdown      []DailyPayoutLine `json:"daily_breakdown"`
+}
+
+var ist = time.FixedZone("IST", 5*60*60+30*60)
+
+// now is swappable in tests so weekly-off crediting ("up to today") is
+// deterministic.
+var now = time.Now
+
+// todayIST returns today's IST calendar date as a UTC-midnight time, the
+// same representation the payout loop uses for each day.
+func todayIST() time.Time {
+	t := now().In(ist)
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 // countWeeklyOffDays counts how many days in [from, to] (inclusive) fall on
@@ -196,8 +223,8 @@ func roundHoursToNearestHour(hours float64) float64 {
 // dayFlags is a small helper shared by ComputeAvailability and
 // ComputeHourlyPayout. isWeeklyOffOverride reflects an admin's one-off
 // "mark this day as weekly off" override (attendance_logs.is_weekly_off),
-// distinct from the employee's recurring weekly_off_days schedule — it only
-// changes the day's displayed category, never the payout computation.
+// distinct from the employee's recurring weekly_off_days schedule. Payout
+// pays it the same as a scheduled weekly off.
 func dayFlags(dayLogs []attendance.Log) (isLeave, autoLogout, isWeeklyOffOverride bool) {
 	for _, l := range dayLogs {
 		if l.IsLeave {
@@ -313,17 +340,21 @@ func ComputeHourlyPayout(e employee.Employee, logs []attendance.Log, monthStart,
 		workingDays = 0
 	}
 
+	// The full calendar month, even for a mid-month joiner, so their
+	// hourly rate matches everyone else's on the same monthly pay.
+	rateBasisDays := int(monthEnd.Sub(monthStart).Hours()/24) + 1
 	var hourlyRateCents float64
-	if workingDays > 0 && e.EligibleHoursPerDay > 0 {
-		hourlyRateCents = float64(monthlyPay) / (float64(workingDays) * e.EligibleHoursPerDay)
+	if e.EligibleHoursPerDay > 0 {
+		hourlyRateCents = float64(monthlyPay) / (float64(rateBasisDays) * e.EligibleHoursPerDay)
 	}
 
 	offDays := make(map[int]bool, len(e.WeeklyOffDays))
 	for _, d := range e.WeeklyOffDays {
 		offDays[d] = true
 	}
+	today := todayIST()
 
-	var totalHours, grossPay float64
+	var totalHours, totalOffHours, grossPay, offPay float64
 	breakdown := make([]DailyPayoutLine, 0, totalDays)
 	for d := windowStart; !d.After(monthEnd); d = d.AddDate(0, 0, 1) {
 		dateStr := d.Format("2006-01-02")
@@ -331,7 +362,20 @@ func ComputeHourlyPayout(e employee.Employee, logs []attendance.Log, monthStart,
 		isLeaveMarked, _, isWeeklyOffOverride := dayFlags(dayLogs)
 		raw := sessionHours(dayLogs)
 		rounded := roundHoursToNearestHour(raw)
-		dayPay := rounded * hourlyRateCents
+
+		// A weekly off (scheduled, or an admin one-off override) that isn't
+		// worked is paid as a full eligible day. Working on it means the off
+		// is swapped for another day, so it's paid like any working day —
+		// hours worked only, no weekly-off credit.
+		isOff := offDays[int(d.Weekday())] || isWeeklyOffOverride
+		var paidOff, overtime float64
+		if isOff && rounded == 0 && !isLeaveMarked && !d.After(today) {
+			paidOff = e.EligibleHoursPerDay
+		}
+		if !isLeaveMarked && rounded > 0 {
+			overtime = rounded - e.EligibleHoursPerDay
+		}
+		dayPay := (rounded + paidOff) * hourlyRateCents
 
 		category := CategoryAbsent
 		switch {
@@ -346,14 +390,18 @@ func ComputeHourlyPayout(e employee.Employee, logs []attendance.Log, monthStart,
 		}
 
 		totalHours += rounded
+		totalOffHours += paidOff
 		grossPay += dayPay
+		offPay += paidOff * hourlyRateCents
 		breakdown = append(breakdown, DailyPayoutLine{
-			Date:         dateStr,
-			Category:     category,
-			Sessions:     sessionTimesFor(dayLogs),
-			RawHours:     raw,
-			RoundedHours: rounded,
-			DayPayCents:  int64(math.Round(dayPay)),
+			Date:          dateStr,
+			Category:      category,
+			Sessions:      sessionTimesFor(dayLogs),
+			RawHours:      raw,
+			RoundedHours:  rounded,
+			PaidOffHours:  paidOff,
+			OvertimeHours: overtime,
+			DayPayCents:   int64(math.Round(dayPay)),
 		})
 	}
 
@@ -370,8 +418,11 @@ func ComputeHourlyPayout(e employee.Employee, logs []attendance.Log, monthStart,
 	base.TotalDays = totalDays
 	base.WeeklyOffCount = weeklyOffCount
 	base.WorkingDaysInMonth = workingDays
+	base.RateBasisDays = rateBasisDays
 	base.HourlyRateCents = hourlyRateCents
 	base.TotalHoursWorked = totalHours
+	base.PaidOffHours = totalOffHours
+	base.PaidOffPayCents = int64(math.Round(offPay))
 	base.GrossPayCents = gross
 	base.AdvanceCents = advanceCents
 	base.NetPayoutCents = net

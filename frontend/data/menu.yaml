@@ -271,7 +271,7 @@ food:
         prices: { veg: 269, egg: 299, chicken: 349 }
         image: "/images/food/food-burnt-garlic-rice-1.jpg"
       - name: "Schezwan Fried Rice"
-        prices: { veg: 279, egg: 309 }
+        prices: { veg: 279, egg: 309, chicken: 349 }
       - name: "Triple Schezwan Fried Rice"
         prices: { veg: 309, chicken: 449 }
       - name: "Triple Schezwan Fried Rice (Half)"

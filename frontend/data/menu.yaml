@@ -180,6 +180,13 @@ food:
       - name: "Veg Poi Sliders"
         prices: { veg: 399 }
 
+  - category: "Goan Main Course"
+    items:
+      - name: "Surmai Rawa Fry"
+        price: 643
+      - name: "Surmai Fish curry Rice Bowl"
+        price: 699
+
   - category: "Chinese Starters"
     items:
       - name: "Honey Chilli Lotus Stem"

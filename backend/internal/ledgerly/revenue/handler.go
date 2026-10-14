@@ -27,9 +27,33 @@ func (h *Handler) LogSale(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.AmountCents <= 0 {
-		http.Error(w, "amount_cents must be positive", http.StatusBadRequest)
-		return
+	req.DiscountReason = strings.TrimSpace(req.DiscountReason)
+	if req.IsComplimentary {
+		// A complimentary bill brings in nothing — it's logged only so its
+		// dishes (and the stock they used) are accounted for.
+		if req.DiscountReason == "" {
+			http.Error(w, "a reason is required for a complimentary sale", http.StatusBadRequest)
+			return
+		}
+		req.AmountCents = 0
+		req.DiscountCents = 0
+		req.PaymentMethod = ""
+	} else {
+		if req.AmountCents <= 0 {
+			http.Error(w, "amount_cents must be positive", http.StatusBadRequest)
+			return
+		}
+		if req.DiscountCents < 0 {
+			http.Error(w, "discount_cents cannot be negative", http.StatusBadRequest)
+			return
+		}
+		if req.DiscountCents > 0 && req.DiscountReason == "" {
+			http.Error(w, "a reason is required when a discount is given", http.StatusBadRequest)
+			return
+		}
+		if req.DiscountCents == 0 {
+			req.DiscountReason = ""
+		}
 	}
 	var itemNames []string
 	for _, name := range req.ItemNames {

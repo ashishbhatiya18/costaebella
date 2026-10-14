@@ -28,11 +28,15 @@ func (r *Repo) InsertSale(ctx context.Context, req SaleRequest, loggedBy string)
 
 	var s Sale
 	err = tx.QueryRow(ctx, `
-		INSERT INTO ledgerly_sales (sale_date, amount_cents, payment_method, notes, logged_by)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, sale_date::text, amount_cents, payment_method, notes, logged_by`,
-		req.SaleDate, req.AmountCents, req.PaymentMethod, req.Notes, loggedBy).Scan(
-		&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy)
+		INSERT INTO ledgerly_sales (sale_date, amount_cents, payment_method, notes, logged_by,
+		                            discount_cents, discount_reason, is_complimentary)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, sale_date::text, amount_cents, payment_method, notes, logged_by,
+		          discount_cents, discount_reason, is_complimentary`,
+		req.SaleDate, req.AmountCents, req.PaymentMethod, req.Notes, loggedBy,
+		req.DiscountCents, req.DiscountReason, req.IsComplimentary).Scan(
+		&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy,
+		&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary)
 	if err != nil {
 		return nil, fmt.Errorf("insert sale: %w", err)
 	}
@@ -67,6 +71,7 @@ func (r *Repo) DeleteSale(ctx context.Context, id string) error {
 func (r *Repo) ListSales(ctx context.Context, from, to string) ([]Sale, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT s.id, s.sale_date::text, s.amount_cents, s.payment_method, s.notes, s.logged_by,
+		       s.discount_cents, s.discount_reason, s.is_complimentary,
 		       COALESCE(array_agg(si.item_name) FILTER (WHERE si.item_name IS NOT NULL), '{}')
 		FROM ledgerly_sales s
 		LEFT JOIN ledgerly_sale_items si ON si.sale_id = s.id
@@ -81,7 +86,8 @@ func (r *Repo) ListSales(ctx context.Context, from, to string) ([]Sale, error) {
 	var out []Sale
 	for rows.Next() {
 		var s Sale
-		if err := rows.Scan(&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy, &s.ItemNames); err != nil {
+		if err := rows.Scan(&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy,
+			&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary, &s.ItemNames); err != nil {
 			return nil, fmt.Errorf("scan sale: %w", err)
 		}
 		out = append(out, s)

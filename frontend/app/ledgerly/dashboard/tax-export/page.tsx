@@ -80,13 +80,16 @@ export default function TaxExportPage() {
     deliveries.reduce((sum, d) => sum + (d.cost_cents ?? 0), 0);
 
   function exportRevenue() {
-    const header = ["date", "payment_method", "amount_inr", "items", "notes"];
+    const header = ["date", "payment_method", "amount_inr", "discount_inr", "complimentary", "reason", "items", "notes"];
     const body: string[][] = [];
     for (const s of sales) {
       body.push([
         s.sale_date,
         s.payment_method,
         toRupees(s.amount_cents),
+        toRupees(s.discount_cents ?? 0),
+        s.is_complimentary ? "yes" : "no",
+        s.discount_reason ?? "",
         (s.item_names ?? []).join("; "),
         s.notes ?? "",
       ]);

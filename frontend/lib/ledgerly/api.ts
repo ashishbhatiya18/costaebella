@@ -42,10 +42,17 @@ export type Payment = {
 export type Sale = {
   id: string;
   sale_date: string;
+  // What was actually received, after any discount. The original bill
+  // total is amount_cents + discount_cents.
   amount_cents: number;
   payment_method: string;
   notes: string;
   item_names: string[];
+  discount_cents: number;
+  // Why the discount or complimentary was given.
+  discount_reason: string;
+  // Free bill: amount is 0, but its dishes still count toward stock use.
+  is_complimentary: boolean;
 };
 
 // A costed Pantrly delivery (GET /api/ledgerly/purchases). Read-only on the
@@ -138,6 +145,9 @@ export const api = {
     payment_method: string;
     notes?: string;
     item_names?: string[];
+    discount_cents?: number;
+    discount_reason?: string;
+    is_complimentary?: boolean;
   }) =>
     request<Sale>("/api/ledgerly/revenue/sales", {
       method: "POST",

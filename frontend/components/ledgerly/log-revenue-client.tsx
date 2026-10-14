@@ -37,11 +37,37 @@ function groupItemNames(names: string[]): { name: string; quantity: number }[] {
   return [...counts.entries()].map(([name, quantity]) => ({ name, quantity }));
 }
 
+// Common reasons offered in the reason dropdown; "Other" switches to a
+// free-text field. The stored reason is always the plain text.
+const OTHER_REASON = "__other__";
+const COMPLIMENTARY_REASONS = [
+  "Owner's guest",
+  "Friends & family",
+  "Staff meal",
+  "Regular customer",
+  "Complaint / service recovery",
+  "Promotion / tasting",
+];
+const DISCOUNT_REASONS = [
+  "Regular customer",
+  "Friends & family",
+  "Staff discount",
+  "Offer / promotion",
+  "Complaint / service recovery",
+  "Bill rounded off",
+];
+
 export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   usePageTitle("Log Income");
   const [date, setDate] = useState(todayStr());
 
+  // saleAmount is the bill total before any discount; what gets logged as
+  // income is the total minus the discount.
   const [saleAmount, setSaleAmount] = useState("");
+  const [saleDiscount, setSaleDiscount] = useState("");
+  const [reasonChoice, setReasonChoice] = useState("");
+  const [saleReason, setSaleReason] = useState("");
+  const [complimentary, setComplimentary] = useState(false);
   const [salePaymentMethod, setSalePaymentMethod] = useState("cash");
   const [saleNotes, setSaleNotes] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
@@ -138,9 +164,25 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
 
   async function submitSale(e: React.FormEvent) {
     e.preventDefault();
-    const amountCents = toCents(saleAmount);
-    if (amountCents <= 0) {
-      setError("Enter a valid amount.");
+    const totalCents = complimentary ? 0 : toCents(saleAmount);
+    const discountCents = complimentary ? 0 : toCents(saleDiscount);
+    if (!complimentary) {
+      if (totalCents <= 0) {
+        setError("Enter a valid amount.");
+        return;
+      }
+      if (discountCents < 0) {
+        setError("Discount can't be negative.");
+        return;
+      }
+      if (discountCents >= totalCents) {
+        setError("Discount must be less than the total — for a fully free bill, tick Complimentary instead.");
+        return;
+      }
+    }
+    const reason = reasonChoice === OTHER_REASON ? saleReason.trim() : reasonChoice;
+    if ((complimentary || discountCents > 0) && !reason) {
+      setError(complimentary ? "Choose a reason for the complimentary." : "Choose a reason for the discount.");
       return;
     }
     const itemNames = expandItemNames(selectedItems);
@@ -155,12 +197,19 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
       const notes = saleNotes.trim() ? `${summary} — ${saleNotes.trim()}` : summary;
       await api.logSale({
         sale_date: date,
-        amount_cents: amountCents,
-        payment_method: salePaymentMethod,
+        amount_cents: totalCents - discountCents,
+        payment_method: complimentary ? "" : salePaymentMethod,
         notes,
         item_names: itemNames,
+        discount_cents: discountCents,
+        discount_reason: complimentary || discountCents > 0 ? reason : "",
+        is_complimentary: complimentary,
       });
       setSaleAmount("");
+      setSaleDiscount("");
+      setReasonChoice("");
+      setSaleReason("");
+      setComplimentary(false);
       setSaleNotes("");
       setSelectedItems({});
       await refresh();
@@ -172,6 +221,10 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   }
 
   const salesTotal = todaysSales.reduce((sum, s) => sum + s.amount_cents, 0);
+  const discountTotal = todaysSales.reduce((sum, s) => sum + (s.discount_cents ?? 0), 0);
+  const complimentaryCount = todaysSales.filter((s) => s.is_complimentary).length;
+  const formDiscountCents = complimentary ? 0 : toCents(saleDiscount);
+  const needsReason = complimentary || formDiscountCents > 0;
 
   async function handleDeleteSale(id: string) {
     if (!confirm("Delete this sale? This cannot be undone.")) return;
@@ -227,9 +280,24 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
               {scanNotice && <p className="mt-1.5 text-xs text-navy/60">{scanNotice}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-navy/70">
+              <input
+                type="checkbox"
+                checked={complimentary}
+                onChange={(e) => {
+                  setComplimentary(e.target.checked);
+                  // The two reason lists differ, so a pick from one may not exist in the other.
+                  if (reasonChoice !== OTHER_REASON) setReasonChoice("");
+                }}
+                className="h-4 w-4 accent-teal"
+              />
+              Complimentary (given free — no payment)
+            </label>
+
+            {!complimentary && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div>
-                <Label htmlFor="sale-amount">Amount (₹)</Label>
+                <Label htmlFor="sale-amount">Total amount (₹)</Label>
                 <Input
                   id="sale-amount"
                   type="number"
@@ -241,6 +309,18 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                 />
               </div>
               <div>
+                <Label htmlFor="sale-discount">Discount (₹)</Label>
+                <Input
+                  id="sale-discount"
+                  type="number"
+                  step="any"
+                  min={0}
+                  value={saleDiscount}
+                  onChange={(e) => setSaleDiscount(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
                 <Label htmlFor="sale-method">Payment method</Label>
                 <select
                   id="sale-method"
@@ -255,9 +335,50 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                 </select>
               </div>
             </div>
+            )}
+
+            {!complimentary && formDiscountCents > 0 && (
+              <p className="text-xs text-navy/60">
+                Customer pays {formatINR(Math.max(toCents(saleAmount) - formDiscountCents, 0))} — this is what gets
+                logged as income.
+              </p>
+            )}
+
+            {needsReason && (
+              <div>
+                <Label htmlFor="sale-reason">
+                  {complimentary ? "Reason for complimentary" : "Reason for discount"}
+                </Label>
+                <select
+                  id="sale-reason"
+                  value={reasonChoice}
+                  onChange={(e) => setReasonChoice(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-navy/15 bg-cream/40 px-3.5 py-2.5 text-sm text-navy outline-none transition-colors focus:border-teal focus:ring-2 focus:ring-teal/20"
+                >
+                  <option value="">Select a reason…</option>
+                  {(complimentary ? COMPLIMENTARY_REASONS : DISCOUNT_REASONS).map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                  <option value={OTHER_REASON}>Other (type it)</option>
+                </select>
+                {reasonChoice === OTHER_REASON && (
+                  <Input
+                    className="mt-2"
+                    value={saleReason}
+                    onChange={(e) => setSaleReason(e.target.value)}
+                    placeholder="Type the reason"
+                    aria-label="Reason"
+                    required
+                  />
+                )}
+              </div>
+            )}
 
             <div>
-              <Label htmlFor="sale-item-search">Dish(es) sold</Label>
+              <Label htmlFor="sale-item-search">{complimentary ? "Dish(es) given" : "Dish(es) sold"}</Label>
               {Object.keys(selectedItems).length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1.5">
                   {Object.entries(selectedItems).map(([name, qty]) => (
@@ -334,7 +455,7 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
             {error && <p className="text-sm text-coral">{error}</p>}
             <div className="flex justify-end">
               <Button type="submit" disabled={submitting || Object.keys(selectedItems).length === 0}>
-                Log sale
+                {complimentary ? "Log complimentary" : "Log sale"}
               </Button>
             </div>
           </form>
@@ -343,7 +464,11 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
         <Card className="p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-semibold text-navy">Today&apos;s sales</h3>
-            <span className="text-sm text-navy/60">{formatINR(salesTotal)} total</span>
+            <span className="text-right text-sm text-navy/60">
+              {formatINR(salesTotal)} total
+              {discountTotal > 0 && ` · ${formatINR(discountTotal)} discount`}
+              {complimentaryCount > 0 && ` · ${complimentaryCount} complimentary`}
+            </span>
           </div>
           {todaysSales.length === 0 ? (
             <p className="text-sm text-navy/50">No sales logged yet for this date.</p>
@@ -353,7 +478,14 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                 <li key={s.id} className="py-2 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-navy/70">
-                      {s.payment_method} {s.notes && `— ${s.notes}`}
+                      {s.is_complimentary ? (
+                        <span className="mr-1 rounded-full bg-coral/15 px-2 py-0.5 text-xs font-medium text-coral">
+                          Complimentary
+                        </span>
+                      ) : (
+                        s.payment_method
+                      )}{" "}
+                      {s.notes && `— ${s.notes}`}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-navy">{formatINR(s.amount_cents)}</span>
@@ -366,6 +498,13 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                       </IconButton>
                     </div>
                   </div>
+                  {(s.is_complimentary || s.discount_cents > 0) && (
+                    <p className="mt-1 text-xs text-navy/60">
+                      {s.discount_cents > 0 &&
+                        `Total ${formatINR(s.amount_cents + s.discount_cents)}, discount ${formatINR(s.discount_cents)}`}
+                      {s.discount_reason && `${s.discount_cents > 0 ? " — " : "Reason: "}${s.discount_reason}`}
+                    </p>
+                  )}
                   {s.item_names?.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {groupItemNames(s.item_names).map(({ name, quantity }) => (

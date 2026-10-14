@@ -7,8 +7,9 @@ import (
 )
 
 // expenseMonth is one month of the Expense Trends view. Every figure comes
-// from the same compute() the P&L Summary uses, so ExpensesCents for a month
-// always equals the P&L Summary's expenses_cents for that month.
+// from the same compute() the P&L Summary uses, but the view is cash-based:
+// salary is what was actually paid out, so attendance-accrued (earned) salary
+// is left out and ExpensesCents is P&L's expenses_cents minus that accrual.
 type expenseMonth struct {
 	From         string `json:"from"`
 	To           string `json:"to"`
@@ -22,13 +23,11 @@ type expenseMonth struct {
 	GroceryPantrlyCents          int64 `json:"grocery_pantrly_cents"`
 	GrocerySupplierPaymentsCents int64 `json:"grocery_supplier_payments_cents"`
 
-	// SalaryEarnedCents is accrued labor cost from Shiftly attendance
-	// (clipped to today); SalaryPaidCents is ledgerly_payments of category
-	// salary; AdvancesCents is Shiftly advances given in the month. P&L adds
-	// all three to expenses.
-	SalaryEarnedCents int64 `json:"salary_earned_cents"`
-	SalaryPaidCents   int64 `json:"salary_paid_cents"`
-	AdvancesCents     int64 `json:"advances_cents"`
+	// Salary = every salary payment made in the month: ledgerly_payments of
+	// category salary plus Shiftly advances, with both sub-lines exposed.
+	SalaryCents         int64 `json:"salary_cents"`
+	SalaryPaymentsCents int64 `json:"salary_payments_cents"`
+	AdvancesCents       int64 `json:"advances_cents"`
 
 	// PaymentsByCategory is every ledgerly_payments category with a nonzero
 	// total in the month (including salary and supplier_purchase, which are
@@ -89,6 +88,9 @@ func (h *Handler) ExpenseTrend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		supplierPayments := p.PaymentsByCategory["supplier_purchase"]
+		salaryPayments := p.PaymentsByCategory["salary"]
+		// Drop accrued salary so only money actually paid out is counted.
+		expensesCents := p.ExpensesCents - p.SalaryCents
 		months = append(months, expenseMonth{
 			From:                         p.From,
 			To:                           p.To,
@@ -96,13 +98,13 @@ func (h *Handler) ExpenseTrend(w http.ResponseWriter, r *http.Request) {
 			GroceryCents:                 p.PurchasesCents + supplierPayments,
 			GroceryPantrlyCents:          p.PurchasesCents,
 			GrocerySupplierPaymentsCents: supplierPayments,
-			SalaryEarnedCents:            p.SalaryCents,
-			SalaryPaidCents:              p.PaymentsByCategory["salary"],
+			SalaryCents:                  salaryPayments + p.AdvancesCents,
+			SalaryPaymentsCents:          salaryPayments,
 			AdvancesCents:                p.AdvancesCents,
 			PaymentsByCategory:           p.PaymentsByCategory,
 			PaymentsCents:                p.PaymentsCents,
-			ExpensesCents:                p.ExpensesCents,
-			ProfitCents:                  p.ProfitCents,
+			ExpensesCents:                expensesCents,
+			ProfitCents:                  p.RevenueCents - expensesCents,
 		})
 	}
 

@@ -14,7 +14,7 @@ const COLOR_SALARY = "#1baf7a";
 const SERIES = [
   { key: "revenue_cents", label: "Income", color: COLOR_REVENUE },
   { key: "grocery_cents", label: "Grocery", color: COLOR_GROCERY },
-  { key: "salary_earned_cents", label: "Salary (earned)", color: COLOR_SALARY },
+  { key: "salary_cents", label: "Salary", color: COLOR_SALARY },
 ] as const;
 
 const WIDTH = 720;

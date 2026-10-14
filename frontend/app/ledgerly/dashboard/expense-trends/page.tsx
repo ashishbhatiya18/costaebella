@@ -2,9 +2,10 @@
 
 // Month-on-month expense breakdown. Owner-only, gated exactly like the P&L
 // Summary (useLedgerlyAccess here + the gated nav tab; the backend route
-// sits in the same RequireOwner group as /api/ledgerly/summary/pnl). Every
-// month's numbers come from the same backend computation as the P&L
-// Summary, so "Total expenses" matches P&L for that month.
+// sits in the same RequireOwner group as /api/ledgerly/summary/pnl). Numbers
+// come from the same backend computation as the P&L Summary, but salary is
+// cash-based here (payments + advances, not attendance-accrued), so "Total
+// expenses" differs from P&L by that month's earned salary.
 
 import { useEffect, useState } from "react";
 import { api, Category, ExpenseTrendMonth } from "@/lib/ledgerly/api";
@@ -147,11 +148,12 @@ export default function ExpenseTrendsPage() {
       rows.push({ key: "grocery-supplier", label: "Supplier payments", values: supplier, variant: "sub" });
     }
 
-    rows.push({ key: "salary-earned", label: "Salary (earned)", values: col((m) => m.salary_earned_cents), variant: "expense", pctLabel: "labour cost" });
-    rows.push({ key: "salary-paid", label: "Salary (paid)", values: col((m) => m.salary_paid_cents), variant: "expense" });
+    rows.push({ key: "salary", label: "Salary", values: col((m) => m.salary_cents), variant: "expense", pctLabel: "labour cost" });
+    const salaryPayments = col((m) => m.salary_payments_cents);
     const advances = col((m) => m.advances_cents);
-    if (anyNonZero(advances)) {
-      rows.push({ key: "advances", label: "Salary advances", values: advances, variant: "expense" });
+    if (anyNonZero(salaryPayments) && anyNonZero(advances)) {
+      rows.push({ key: "salary-payments", label: "Salary payments", values: salaryPayments, variant: "sub" });
+      rows.push({ key: "salary-advances", label: "Advances", values: advances, variant: "sub" });
     }
 
     (Object.keys(CATEGORY_LABELS) as Category[])
@@ -265,10 +267,11 @@ export default function ExpenseTrendsPage() {
           </Card>
 
           <p className="text-xs text-navy/50">
-            Total expenses matches the P&amp;L Summary for each month: it adds Grocery (Pantrly deliveries + supplier
-            payments), Salary (earned) from attendance, Salary (paid), Salary advances, and every other expense
-            category. If the same delivery or salary is recorded in more than one of those places, it is counted
-            more than once. % change is against the previous month; food / labour cost is % of that month&apos;s income.
+            Total expenses adds Grocery (Pantrly deliveries + supplier payments), Salary (salary payments + advances
+            actually paid that month) and every other expense category. Salary earned from attendance is not
+            included, so this total differs from the P&amp;L Summary by that amount. If the same delivery is recorded
+            both in Pantrly and as a supplier payment, it is counted twice. % change is against the previous month;
+            food / labour cost is % of that month&apos;s income.
           </p>
 
           <ExpenseTrendChart months={months} />

@@ -106,10 +106,11 @@ export type ExpenseTrendMonth = {
   grocery_cents: number;
   grocery_pantrly_cents: number;
   grocery_supplier_payments_cents: number;
-  // Accrued from Shiftly attendance (clipped to today).
-  salary_earned_cents: number;
+  // Salary actually paid in the month: salary_payments_cents + advances_cents.
+  salary_cents: number;
   // ledgerly_payments with category = salary.
-  salary_paid_cents: number;
+  salary_payments_cents: number;
+  // Shiftly advances given in the month.
   advances_cents: number;
   payments_by_category: Partial<Record<Category, number>> | null;
   payments_cents: number;

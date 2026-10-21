@@ -8,8 +8,8 @@ import (
 
 // expenseMonth is one month of the Expense Trends view. Every figure comes
 // from the same compute() the P&L Summary uses, but the view is cash-based:
-// salary is what was actually paid out, so attendance-accrued (earned) salary
-// is left out and ExpensesCents is P&L's expenses_cents minus that accrual.
+// salary is what was actually paid out (salary payments + advances), in place
+// of the attendance-accrued (earned) salary P&L counts.
 type expenseMonth struct {
 	From         string `json:"from"`
 	To           string `json:"to"`
@@ -64,7 +64,7 @@ func (h *Handler) ExpenseTrend(w http.ResponseWriter, r *http.Request) {
 		periods = maxExpenseTrendPeriods
 	}
 
-	anchor := time.Now().UTC()
+	anchor := todayIST()
 	if a := q.Get("anchor_date"); a != "" {
 		parsed, err := time.Parse("2006-01-02", a)
 		if err != nil {
@@ -88,9 +88,9 @@ func (h *Handler) ExpenseTrend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		supplierPayments := p.PaymentsByCategory["supplier_purchase"]
-		salaryPayments := p.PaymentsByCategory["salary"]
-		// Drop accrued salary so only money actually paid out is counted.
-		expensesCents := p.ExpensesCents - p.SalaryCents
+		salaryPayments := p.SalaryPaymentsCents
+		// Swap P&L's accrued salary for the salary actually paid out.
+		expensesCents := p.ExpensesCents - p.SalaryCents + salaryPayments + p.AdvancesCents
 		months = append(months, expenseMonth{
 			From:                         p.From,
 			To:                           p.To,

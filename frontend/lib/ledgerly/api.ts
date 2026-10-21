@@ -83,12 +83,21 @@ export type PnlSummary = {
   revenue_card_cents: number;
   revenue_upi_cents: number;
   revenue_other_cents: number;
+  // Every ledgerly_payment; other_payments_cents is the non-salary part,
+  // which is what counts toward expenses_cents.
   payments_cents: number;
+  other_payments_cents: number;
   purchases_cents: number;
-  advances_cents: number;
+  // Salary earned from attendance — the only staff cost in expenses_cents.
   salary_cents: number;
+  // Paid out against earned salary (salary payments + Shiftly advances);
+  // shown for reference, not added to expenses_cents.
+  salary_payments_cents: number;
+  advances_cents: number;
   expenses_cents: number;
   profit_cents: number;
+  // Every payment category with a total in range, salary included.
+  payments_by_category: Partial<Record<Category, number>> | null;
   pantrly_purchases: {
     id: string;
     item_name: string;

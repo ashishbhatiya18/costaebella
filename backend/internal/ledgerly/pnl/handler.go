@@ -29,23 +29,55 @@ func NewHandler(revenue *revenue.Repo, payments *payment.Repo, stock *stock.Repo
 	return &Handler{revenue: revenue, payments: payments, stock: stock, advances: advances, employees: employees, attendances: attendances}
 }
 
+var ist = time.FixedZone("IST", 5*60*60+30*60)
+
+// todayIST is today's date in India (where the restaurant runs) as a
+// UTC-midnight time — the same representation rangeBounds and Shiftly's
+// payout use. time.Now().UTC() would still be "yesterday" until 05:30 IST.
+func todayIST() time.Time {
+	t := time.Now().In(ist)
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// expenseTotals applies the P&L's staff-cost rule: salary earned
+// (accrued from attendance) is the only staff cost. Salary-category
+// payments are excluded from expenses because they settle that same
+// salary — every one goes to a Shiftly employee — and Shiftly advances are
+// never added for the same reason. Returns the non-salary payments, the
+// salary payments, and total expenses.
+func expenseTotals(paymentsByCategory map[string]int64, purchasesCents, salaryEarnedCents int64) (otherPayments, salaryPayments, expenses int64) {
+	for category, v := range paymentsByCategory {
+		if category == "salary" {
+			salaryPayments += v
+		} else {
+			otherPayments += v
+		}
+	}
+	return otherPayments, salaryPayments, otherPayments + purchasesCents + salaryEarnedCents
+}
+
 // period is one range's computed P&L, shared by the single-period Summary
 // endpoint and the multi-period Trend endpoint.
 type period struct {
-	From              string                   `json:"from"`
-	To                string                   `json:"to"`
-	RevenueCents      int64                    `json:"revenue_cents"`
-	RevenueCashCents  int64                    `json:"revenue_cash_cents"`
-	RevenueCardCents  int64                    `json:"revenue_card_cents"`
-	RevenueUpiCents   int64                    `json:"revenue_upi_cents"`
-	RevenueOtherCents int64                    `json:"revenue_other_cents"`
-	PaymentsCents     int64                    `json:"payments_cents"`
-	PurchasesCents    int64                    `json:"purchases_cents"`
-	AdvancesCents     int64                    `json:"advances_cents"`
-	SalaryCents       int64                    `json:"salary_cents"`
-	ExpensesCents     int64                    `json:"expenses_cents"`
-	ProfitCents       int64                    `json:"profit_cents"`
-	PantrlyPurchases  []stock.PurchaseWithItem `json:"pantrly_purchases"`
+	From              string `json:"from"`
+	To                string `json:"to"`
+	RevenueCents      int64  `json:"revenue_cents"`
+	RevenueCashCents  int64  `json:"revenue_cash_cents"`
+	RevenueCardCents  int64  `json:"revenue_card_cents"`
+	RevenueUpiCents   int64  `json:"revenue_upi_cents"`
+	RevenueOtherCents int64  `json:"revenue_other_cents"`
+	PaymentsCents     int64  `json:"payments_cents"`
+	PurchasesCents    int64  `json:"purchases_cents"`
+	// SalaryCents is salary earned (accrued from attendance) — the P&L's
+	// only staff cost. SalaryPaymentsCents (ledgerly_payments of category
+	// salary) and AdvancesCents (Shiftly advances) are money paid out
+	// against that salary, so they're reported but not added to expenses.
+	AdvancesCents       int64                    `json:"advances_cents"`
+	SalaryPaymentsCents int64                    `json:"salary_payments_cents"`
+	SalaryCents         int64                    `json:"salary_cents"`
+	ExpensesCents       int64                    `json:"expenses_cents"`
+	ProfitCents         int64                    `json:"profit_cents"`
+	PantrlyPurchases    []stock.PurchaseWithItem `json:"pantrly_purchases"`
 	// PaymentsByCategory breaks PaymentsCents down by ledgerly_payments
 	// category (only categories with payments in range are present).
 	PaymentsByCategory map[string]int64 `json:"payments_by_category"`
@@ -54,7 +86,10 @@ type period struct {
 // compute derives one period's P&L for [from, to]. Salary is accrued labor
 // cost — computed from attendance, not from any logged expense — clipped to
 // "as of today" so a future-dated range (e.g. the rest of the current month)
-// doesn't project unearned salary.
+// doesn't project unearned salary. It is the only staff cost counted: salary
+// payments and advances are all paid to Shiftly employees and settle that
+// same earned salary, so adding them too would count staff pay two or three
+// times.
 func (h *Handler) compute(ctx context.Context, from, to time.Time) (period, error) {
 	fromStr, toStr := from.Format("2006-01-02"), to.Format("2006-01-02")
 
@@ -74,10 +109,6 @@ func (h *Handler) compute(ctx context.Context, from, to time.Time) (period, erro
 	if err != nil {
 		return period{}, err
 	}
-	var paymentsCents int64
-	for _, v := range paymentsByCategory {
-		paymentsCents += v
-	}
 
 	purchases, err := h.stock.ListPurchasesWithCost(ctx, fromStr, toStr)
 	if err != nil {
@@ -95,8 +126,7 @@ func (h *Handler) compute(ctx context.Context, from, to time.Time) (period, erro
 		return period{}, err
 	}
 
-	today := time.Now().UTC()
-	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	today := todayIST()
 	salaryTo := to
 	if salaryTo.After(today) {
 		salaryTo = today
@@ -109,24 +139,26 @@ func (h *Handler) compute(ctx context.Context, from, to time.Time) (period, erro
 		}
 	}
 
-	expensesCents := paymentsCents + purchasesCents + advancesCents + salaryCents
+	otherPaymentsCents, salaryPaymentsCents, expensesCents := expenseTotals(paymentsByCategory, purchasesCents, salaryCents)
+	paymentsCents := otherPaymentsCents + salaryPaymentsCents
 
 	return period{
-		From:               fromStr,
-		To:                 toStr,
-		RevenueCents:       revenueCents,
-		RevenueCashCents:   revenueByMethod["cash"],
-		RevenueCardCents:   revenueByMethod["card"],
-		RevenueUpiCents:    revenueByMethod["upi"],
-		RevenueOtherCents:  revenueByMethod["other"],
-		PaymentsCents:      paymentsCents,
-		PurchasesCents:     purchasesCents,
-		AdvancesCents:      advancesCents,
-		SalaryCents:        salaryCents,
-		ExpensesCents:      expensesCents,
-		ProfitCents:        revenueCents - expensesCents,
-		PantrlyPurchases:   purchases,
-		PaymentsByCategory: paymentsByCategory,
+		From:                fromStr,
+		To:                  toStr,
+		RevenueCents:        revenueCents,
+		RevenueCashCents:    revenueByMethod["cash"],
+		RevenueCardCents:    revenueByMethod["card"],
+		RevenueUpiCents:     revenueByMethod["upi"],
+		RevenueOtherCents:   revenueByMethod["other"],
+		PaymentsCents:       paymentsCents,
+		PurchasesCents:      purchasesCents,
+		AdvancesCents:       advancesCents,
+		SalaryPaymentsCents: salaryPaymentsCents,
+		SalaryCents:         salaryCents,
+		ExpensesCents:       expensesCents,
+		ProfitCents:         revenueCents - expensesCents,
+		PantrlyPurchases:    purchases,
+		PaymentsByCategory:  paymentsByCategory,
 	}, nil
 }
 
@@ -137,7 +169,7 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	if rangeType == "" {
 		rangeType = "week"
 	}
-	anchor := time.Now()
+	anchor := todayIST()
 	if a := q.Get("anchor_date"); a != "" {
 		parsed, err := time.Parse("2006-01-02", a)
 		if err != nil {
@@ -169,12 +201,18 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		"revenue_upi_cents":   p.RevenueUpiCents,
 		"revenue_other_cents": p.RevenueOtherCents,
 		"payments_cents":      p.PaymentsCents,
-		"purchases_cents":     p.PurchasesCents,
-		"advances_cents":      p.AdvancesCents,
-		"salary_cents":        p.SalaryCents,
-		"expenses_cents":      p.ExpensesCents,
-		"profit_cents":        p.ProfitCents,
-		"pantrly_purchases":   p.PantrlyPurchases,
+		// Payments other than salary — the part of payments_cents that
+		// counts toward expenses_cents.
+		"other_payments_cents":  p.PaymentsCents - p.SalaryPaymentsCents,
+		"purchases_cents":       p.PurchasesCents,
+		"advances_cents":        p.AdvancesCents,
+		"salary_payments_cents": p.SalaryPaymentsCents,
+		"salary_cents":          p.SalaryCents,
+		"expenses_cents":        p.ExpensesCents,
+		"profit_cents":          p.ProfitCents,
+		"pantrly_purchases":     p.PantrlyPurchases,
+		// Every payment category with a total in range, salary included.
+		"payments_by_category": p.PaymentsByCategory,
 	})
 }
 
@@ -208,7 +246,7 @@ func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
 
 	// anchor_date (optional, default today) picks the period the trend ends
 	// at, so the chart can follow the summary when stepping back in time.
-	anchor := time.Now()
+	anchor := todayIST()
 	if a := q.Get("anchor_date"); a != "" {
 		parsed, err := time.Parse("2006-01-02", a)
 		if err != nil {

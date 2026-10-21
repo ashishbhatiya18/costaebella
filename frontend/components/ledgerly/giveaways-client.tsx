@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, Sale } from "@/lib/ledgerly/api";
 import { api as shiftlyApi, Employee } from "@/lib/shiftly/api";
-import { RecipientType, STAFF_CATEGORIES } from "@/lib/ledgerly/giveaways";
+import { complimentaryValue, RecipientType, STAFF_CATEGORIES } from "@/lib/ledgerly/giveaways";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { IconButton } from "@/components/admin/ui/icon-button";
@@ -63,11 +63,7 @@ function toGiveaway(s: Sale, prices: Record<string, number>): Giveaway {
   let billCents = s.amount_cents + s.discount_cents;
   let unpriced = false;
   if (s.is_complimentary) {
-    givenAwayCents = 0;
-    for (const name of names) {
-      if (prices[name] != null) givenAwayCents += Math.round(prices[name] * 100);
-      else unpriced = true;
-    }
+    ({ cents: givenAwayCents, unpriced } = complimentaryValue(names, prices));
     billCents = givenAwayCents;
   }
   return {

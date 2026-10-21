@@ -215,3 +215,32 @@ func TestPayoutRateUsesDaysInMonth(t *testing.T) {
 		t.Errorf("full-attendance gross = %d, want monthly pay %d", pay.GrossPayCents, e.MonthlyPayCents)
 	}
 }
+
+// TestOverlappingSessionsNotDoubleCounted reproduces a logout typed on the
+// wrong day: 14:00 to 12:00 the next day runs into the next day's 09:00
+// shift. The overlap (09:00-12:00) must be paid once, so the first session
+// is clipped to 19h and the second keeps its 9h.
+func TestOverlappingSessionsNotDoubleCounted(t *testing.T) {
+	const id = "emp-anjan"
+	e := employee.Employee{ID: id, MonthlyPayCents: 3000000, EligibleHoursPerDay: 10, StartDate: "2026-09-01"}
+	logs := []attendance.Log{
+		session(t, id, "2026-09-23", 14, 22), // 23rd 14:00 -> 24th 12:00
+		session(t, id, "2026-09-24", 9, 9),   // 24th 09:00 -> 18:00
+	}
+	p := ComputeHourlyPayout(e, logs, mustDate(t, "2026-09-01"), mustDate(t, "2026-09-30"), 0)
+
+	got := map[string]float64{}
+	for _, d := range p.DailyBreakdown {
+		got[d.Date] = d.RawHours
+	}
+	if got["2026-09-23"] != 19 {
+		t.Errorf("23rd raw hours = %v, want 19 (clipped at the next login)", got["2026-09-23"])
+	}
+	if got["2026-09-24"] != 9 {
+		t.Errorf("24th raw hours = %v, want 9", got["2026-09-24"])
+	}
+	// The caller's logs must not be modified.
+	if h := logs[0].LogoutTime.Sub(*logs[0].LoginTime).Hours(); h != 22 {
+		t.Errorf("input session changed to %vh", h)
+	}
+}

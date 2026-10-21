@@ -1,6 +1,7 @@
 "use client";
 
 import { PnlSummary } from "@/lib/ledgerly/api";
+import { Giveaways } from "@/lib/ledgerly/giveaways";
 import { Card } from "@/components/admin/ui/card";
 import { formatDateRange } from "@/lib/admin/format";
 
@@ -13,8 +14,8 @@ const COLOR_UPI = "#1baf7a";
 const COLOR_OTHER_REVENUE = "#eda100";
 const COLOR_EXPENSES = "#e87ba4";
 const COLOR_PURCHASES = "#4a3aa7";
-const COLOR_ADVANCES = "#9085e9";
 const COLOR_SALARY = "#184f95";
+const COLOR_GIVEAWAY = "#9085e9";
 // Status colors — reused from the trend chart's loss/profit convention.
 const COLOR_GOOD = "#0ca30c";
 const COLOR_LOSS = "#d03b3b";
@@ -59,7 +60,10 @@ const NODE_W = 14;
 const MIN_NODE_H = 14;
 const GAP = 8;
 
-export function PnlSankey({ summary }: { summary: PnlSummary }) {
+// Discounts and complimentary appear on both sides — as sales that weren't
+// collected and as expenses — the same way the P&L cards count them, so the
+// two columns still balance and profit is unchanged.
+export function PnlSankey({ summary, giveaways }: { summary: PnlSummary; giveaways: Giveaways }) {
   const loss = summary.profit_cents < 0 ? -summary.profit_cents : 0;
   const surplus = summary.profit_cents > 0 ? summary.profit_cents : 0;
 
@@ -68,14 +72,17 @@ export function PnlSankey({ summary }: { summary: PnlSummary }) {
     { label: "Card", value: summary.revenue_card_cents, color: COLOR_CARD },
     { label: "UPI", value: summary.revenue_upi_cents, color: COLOR_UPI },
     { label: "Other income", value: summary.revenue_other_cents, color: COLOR_OTHER_REVENUE },
+    { label: "Discounted sales", value: giveaways.discountCents, color: COLOR_GIVEAWAY },
+    { label: "Complimentary sales", value: giveaways.complimentaryCents, color: COLOR_GIVEAWAY },
     { label: "Owner's contribution", value: loss, color: COLOR_LOSS },
   ].filter((n) => n.value > 0);
 
   const destinations: Node[] = [
-    { label: "Expenses", value: summary.payments_cents, color: COLOR_EXPENSES },
+    { label: "Expenses", value: summary.other_payments_cents, color: COLOR_EXPENSES },
     { label: "Pantrly deliveries", value: summary.purchases_cents, color: COLOR_PURCHASES },
-    { label: "Advances", value: summary.advances_cents, color: COLOR_ADVANCES },
-    { label: "Salary (accrued)", value: summary.salary_cents, color: COLOR_SALARY },
+    { label: "Salary (earned)", value: summary.salary_cents, color: COLOR_SALARY },
+    { label: "Discounts", value: giveaways.discountCents, color: COLOR_GIVEAWAY },
+    { label: "Complimentary", value: giveaways.complimentaryCents, color: COLOR_GIVEAWAY },
     { label: "Profit", value: surplus, color: COLOR_GOOD },
   ].filter((n) => n.value > 0);
 

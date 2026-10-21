@@ -3,6 +3,7 @@ package payout
 import (
 	"context"
 	"math"
+	"sort"
 	"time"
 
 	"attendance-app/costaebella-backend/internal/shiftly/attendance"
@@ -184,14 +185,46 @@ func parseDate(s string) (t time.Time, ok bool) {
 }
 
 // groupByDate buckets one employee's log rows (sessions and/or a leave
-// marker) by log_date.
+// marker) by log_date, after clipping overlapping sessions so no stretch of
+// time is counted twice.
 func groupByDate(logs []attendance.Log, employeeID string) map[string][]attendance.Log {
-	out := map[string][]attendance.Log{}
+	var own []attendance.Log
 	for _, l := range logs {
-		if l.EmployeeID != employeeID {
-			continue
+		if l.EmployeeID == employeeID {
+			own = append(own, l)
 		}
+	}
+	out := map[string][]attendance.Log{}
+	for _, l := range clipOverlappingSessions(own) {
 		out[l.LogDate] = append(out[l.LogDate], l)
+	}
+	return out
+}
+
+// clipOverlappingSessions ends any session at the next session's login
+// when it runs into it — one employee can't be working two sessions at
+// once, so an overlap (typically a logout typed on the wrong day, e.g.
+// 2pm-to-noon-next-day overrunning the next morning's shift) would
+// otherwise pay those hours twice. Works across log dates; the input isn't
+// modified.
+func clipOverlappingSessions(logs []attendance.Log) []attendance.Log {
+	out := make([]attendance.Log, len(logs))
+	copy(out, logs)
+
+	var timed []int
+	for i, l := range out {
+		if l.LoginTime != nil {
+			timed = append(timed, i)
+		}
+	}
+	sort.SliceStable(timed, func(a, b int) bool { return out[timed[a]].LoginTime.Before(*out[timed[b]].LoginTime) })
+	for k := 0; k+1 < len(timed); k++ {
+		cur := &out[timed[k]]
+		next := out[timed[k+1]].LoginTime
+		if cur.LogoutTime != nil && cur.LogoutTime.After(*next) {
+			clipped := *next
+			cur.LogoutTime = &clipped
+		}
 	}
 	return out
 }

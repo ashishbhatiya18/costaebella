@@ -71,12 +71,15 @@ func (r *Repo) Create(ctx context.Context, e Employee) (*Employee, error) {
 	return r.Get(ctx, id)
 }
 
+// Update edits an employee's details. active is deliberately left alone:
+// the edit form doesn't send it, so writing e.Active here used to flip
+// every edited employee to inactive.
 func (r *Repo) Update(ctx context.Context, id string, e Employee) (*Employee, error) {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE employees SET name=$1, shift_name=$2, monthly_pay_cents=$3, weekly_off_days=$4,
-		       eligible_hours_per_day=$5, start_date=$6, active=$7, updated_at=now()
-		WHERE id=$8`,
-		e.Name, e.ShiftName, e.MonthlyPayCents, intsToInt16s(e.WeeklyOffDays), e.EligibleHoursPerDay, e.StartDate, e.Active, id)
+		       eligible_hours_per_day=$5, start_date=$6, updated_at=now()
+		WHERE id=$7`,
+		e.Name, e.ShiftName, e.MonthlyPayCents, intsToInt16s(e.WeeklyOffDays), e.EligibleHoursPerDay, e.StartDate, id)
 	if err != nil {
 		return nil, fmt.Errorf("update employee: %w", err)
 	}

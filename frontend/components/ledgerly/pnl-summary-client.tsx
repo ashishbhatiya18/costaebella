@@ -1,0 +1,177 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { api, PnlSummary, PnlTrendPoint } from "@/lib/ledgerly/api";
+import { giveawayTotals, Giveaways } from "@/lib/ledgerly/giveaways";
+import { buildPnlReportPdf } from "@/lib/ledgerly/pnl-report";
+import { Button } from "@/components/admin/ui/button";
+import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
+import { Card } from "@/components/admin/ui/card";
+import { SegmentedControl } from "@/components/admin/ui/segmented-control";
+import { PeriodNavigator } from "@/components/admin/ui/period-navigator";
+import { PnlTrendChart } from "@/components/ledgerly/pnl-trend-chart";
+import { PnlSankey } from "@/components/ledgerly/pnl-sankey";
+import { formatINR } from "@/lib/admin/format";
+import { usePageTitle } from "@/lib/admin/use-page-title";
+import { todayStr } from "@/lib/admin/period";
+
+const TREND_PERIODS = 8;
+
+export function PnlSummaryClient({ prices }: { prices: Record<string, number> }) {
+  usePageTitle("P&L Summary");
+  const access = useLedgerlyAccess();
+  const [range, setRange] = useState<"week" | "month">("week");
+  // Any date in the period being viewed; the trend chart ends at it too.
+  const [anchor, setAnchor] = useState(todayStr());
+  const [summary, setSummary] = useState<PnlSummary | null>(null);
+  const [trend, setTrend] = useState<PnlTrendPoint[] | null>(null);
+  const [giveaways, setGiveaways] = useState<Giveaways | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (access !== "allowed") return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      api.pnlSummary(range, anchor),
+      api.pnlTrend(range, TREND_PERIODS, anchor),
+    ])
+      .then(async ([summaryData, trendData]) => {
+        // Same from/to the backend resolved for the period.
+        const sales = await api.listSales({ from: summaryData.from, to: summaryData.to });
+        if (cancelled) return;
+        setSummary({ ...summaryData, pantrly_purchases: summaryData.pantrly_purchases ?? [] });
+        setTrend(trendData.periods ?? []);
+        setGiveaways(giveawayTotals(sales ?? [], prices));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [access, range, anchor, prices]);
+
+  const giveawayCents = giveaways ? giveaways.discountCents + giveaways.complimentaryCents : 0;
+
+  if (access === "checking") return null;
+
+  if (access === "denied") {
+    return (
+      <div>
+        <h1 className="font-display text-2xl text-navy">P&L Summary</h1>
+        <Card className="mt-6 p-10 text-center">
+          <p className="font-medium text-navy">You don&apos;t have access to the P&amp;L summary.</p>
+          <p className="mt-1 text-sm text-navy/60">
+            This view is restricted to the owner role. Log Income and Expense are still available to you.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl text-navy">P&amp;L Summary</h1>
+          <p className="mt-1 text-sm text-navy/60">Income, expenses, and profit for the period.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodNavigator type={range} anchor={anchor} onChange={setAnchor} />
+          <SegmentedControl
+            options={[
+              { label: "Week", value: "week" },
+              { label: "Month", value: "month" },
+            ]}
+            value={range}
+            onChange={setRange}
+          />
+          {range === "month" && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={loading || !summary || !giveaways}
+              onClick={() => summary && giveaways && buildPnlReportPdf(summary, giveaways)}
+            >
+              Download PDF
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {loading || !summary || !giveaways ? (
+        <p className="text-sm text-navy/60">Loading…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Card className="p-5">
+              <p className="text-xs uppercase tracking-wide text-navy/50">Sales</p>
+              <p className="mt-2 font-display text-2xl text-navy">
+                {formatINR(summary.revenue_cents + giveawayCents)}
+              </p>
+              <p className="mt-1 text-xs text-navy/50">
+                {formatINR(summary.revenue_cents)} received ({formatINR(summary.revenue_cash_cents)} cash +{" "}
+                {formatINR(summary.revenue_card_cents)} card + {formatINR(summary.revenue_upi_cents)} UPI
+                {summary.revenue_other_cents > 0 && <> + {formatINR(summary.revenue_other_cents)} other</>})
+                {giveawayCents > 0 && (
+                  <>
+                    {" + "}
+                    {formatINR(giveaways.discountCents)} discounts + {formatINR(giveaways.complimentaryCents)}{" "}
+                    complimentary
+                  </>
+                )}
+              </p>
+            </Card>
+            <Card className="p-5">
+              <p className="text-xs uppercase tracking-wide text-navy/50">Expenses</p>
+              <p className="mt-2 font-display text-2xl text-navy">
+                {formatINR(summary.expenses_cents + giveawayCents)}
+              </p>
+              <p className="mt-1 text-xs text-navy/50">
+                {formatINR(summary.other_payments_cents)} expenses + {formatINR(summary.purchases_cents)} Pantrly deliveries
+                {" + "}
+                {formatINR(summary.salary_cents)} salary earned
+                {giveawayCents > 0 && (
+                  <>
+                    {" + "}
+                    {formatINR(giveaways.discountCents)} discounts + {formatINR(giveaways.complimentaryCents)}{" "}
+                    complimentary
+                  </>
+                )}
+              </p>
+              {summary.salary_payments_cents + summary.advances_cents > 0 && (
+                <p className="mt-1 text-xs text-navy/40">
+                  Salary paid out in this period: {formatINR(summary.salary_payments_cents + summary.advances_cents)} (
+                  {formatINR(summary.salary_payments_cents)} payments + {formatINR(summary.advances_cents)} advances) — not
+                  added again, it settles earned salary.
+                </p>
+              )}
+            </Card>
+            <Card className="p-5">
+              <p className="text-xs uppercase tracking-wide text-navy/50">Profit</p>
+              <p
+                className={
+                  "mt-2 font-display text-2xl " + (summary.profit_cents >= 0 ? "text-teal" : "text-coral")
+                }
+              >
+                {formatINR(summary.profit_cents)}
+              </p>
+              {giveawayCents > 0 && (
+                <p className="mt-1 text-xs text-navy/40">
+                  Discounts and complimentary (at menu price{giveaways.unpriced && ", some dishes unpriced"}) are added
+                  to both sales and expenses, so they don&apos;t change profit — income received already leaves
+                  them out.
+                </p>
+              )}
+            </Card>
+          </div>
+
+          <PnlSankey summary={summary} giveaways={giveaways} />
+
+          {trend && trend.length > 0 && <PnlTrendChart points={trend} rangeType={range} />}
+        </>
+      )}
+    </div>
+  );
+}

@@ -4,12 +4,13 @@
 // Summary (useLedgerlyAccess here + the gated nav tab; the backend route
 // sits in the same RequireOwner group as /api/ledgerly/summary/pnl). Numbers
 // come from the same backend computation as the P&L Summary, but salary is
-// cash-based here (payments + advances, not attendance-accrued), so "Total
-// expenses" differs from P&L by that month's earned salary.
+// cash-based here (payments + advances paid that month), while P&L counts
+// salary earned from attendance — "Total expenses" differs by the gap.
 
 import { useEffect, useState } from "react";
 import { api, Category, ExpenseTrendMonth } from "@/lib/ledgerly/api";
 import { useLedgerlyAccess } from "@/lib/ledgerly/use-access";
+import { CATEGORY_LABELS } from "@/lib/ledgerly/categories";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { SegmentedControl } from "@/components/admin/ui/segmented-control";
@@ -18,21 +19,6 @@ import { formatINR } from "@/lib/admin/format";
 import { clsx } from "@/lib/admin/clsx";
 import { usePageTitle } from "@/lib/admin/use-page-title";
 import { periodBounds, todayStr } from "@/lib/admin/period";
-
-// Typed against Category so adding a backend category fails the type check
-// here until it's labelled (keep in sync with payment.ValidCategories).
-const CATEGORY_LABELS: Record<Category, string> = {
-  rent: "Rent",
-  utilities: "Utilities",
-  supplier_purchase: "Supplier purchase",
-  salary: "Salary",
-  maintenance: "Maintenance",
-  marketing: "Marketing",
-  licenses_fees: "Licenses & fees",
-  transport: "Transport",
-  equipment: "Equipment",
-  other: "Other",
-};
 
 // Shown in their own Grocery / Salary rows, not as generic category rows.
 const DEDICATED_CATEGORIES: Category[] = ["supplier_purchase", "salary"];
@@ -268,8 +254,8 @@ export default function ExpenseTrendsPage() {
 
           <p className="text-xs text-navy/50">
             Total expenses adds Grocery (Pantrly deliveries + supplier payments), Salary (salary payments + advances
-            actually paid that month) and every other expense category. Salary earned from attendance is not
-            included, so this total differs from the P&amp;L Summary by that amount. If the same delivery is recorded
+            actually paid that month) and every other expense category. The P&amp;L Summary counts salary earned from
+            attendance instead, so the two totals differ by the gap between salary paid and salary earned. If the same delivery is recorded
             both in Pantrly and as a supplier payment, it is counted twice. % change is against the previous month;
             food / labour cost is % of that month&apos;s income.
           </p>

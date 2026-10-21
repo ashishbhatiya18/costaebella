@@ -106,39 +106,29 @@ export function PnlSummaryClient({ prices }: { prices: Record<string, number> })
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Card className="p-5">
-              <p className="text-xs uppercase tracking-wide text-navy/50">Sales</p>
-              <p className="mt-2 font-display text-2xl text-navy">
-                {formatINR(summary.revenue_cents + giveawayCents)}
-              </p>
+              <p className="text-xs uppercase tracking-wide text-navy/50">Net sales</p>
+              <p className="mt-2 font-display text-2xl text-navy">{formatINR(summary.revenue_cents)}</p>
               <p className="mt-1 text-xs text-navy/50">
-                {formatINR(summary.revenue_cents)} received ({formatINR(summary.revenue_cash_cents)} cash +{" "}
-                {formatINR(summary.revenue_card_cents)} card + {formatINR(summary.revenue_upi_cents)} UPI
-                {summary.revenue_other_cents > 0 && <> + {formatINR(summary.revenue_other_cents)} other</>})
-                {giveawayCents > 0 && (
-                  <>
-                    {" + "}
-                    {formatINR(giveaways.discountCents)} discounts + {formatINR(giveaways.complimentaryCents)}{" "}
-                    complimentary
-                  </>
-                )}
+                {formatINR(summary.revenue_cash_cents)} cash + {formatINR(summary.revenue_card_cents)} card
+                {" + "}
+                {formatINR(summary.revenue_upi_cents)} UPI
+                {summary.revenue_other_cents > 0 && <> + {formatINR(summary.revenue_other_cents)} other</>}
               </p>
+              {giveawayCents > 0 && (
+                <p className="mt-1 text-xs text-navy/40">
+                  {formatINR(summary.revenue_cents + giveawayCents)} at menu price − {formatINR(giveaways.discountCents)}{" "}
+                  discounts − {formatINR(giveaways.complimentaryCents)} complimentary
+                  {giveaways.unpriced && " (some dishes unpriced)"}
+                </p>
+              )}
             </Card>
             <Card className="p-5">
               <p className="text-xs uppercase tracking-wide text-navy/50">Expenses</p>
-              <p className="mt-2 font-display text-2xl text-navy">
-                {formatINR(summary.expenses_cents + giveawayCents)}
-              </p>
+              <p className="mt-2 font-display text-2xl text-navy">{formatINR(summary.expenses_cents)}</p>
               <p className="mt-1 text-xs text-navy/50">
                 {formatINR(summary.other_payments_cents)} expenses + {formatINR(summary.purchases_cents)} Pantrly deliveries
                 {" + "}
                 {formatINR(summary.salary_cents)} salary earned
-                {giveawayCents > 0 && (
-                  <>
-                    {" + "}
-                    {formatINR(giveaways.discountCents)} discounts + {formatINR(giveaways.complimentaryCents)}{" "}
-                    complimentary
-                  </>
-                )}
               </p>
               {summary.salary_payments_cents + summary.advances_cents > 0 && (
                 <p className="mt-1 text-xs text-navy/40">
@@ -157,17 +147,10 @@ export function PnlSummaryClient({ prices }: { prices: Record<string, number> })
               >
                 {formatINR(summary.profit_cents)}
               </p>
-              {giveawayCents > 0 && (
-                <p className="mt-1 text-xs text-navy/40">
-                  Discounts and complimentary (at menu price{giveaways.unpriced && ", some dishes unpriced"}) are added
-                  to both sales and expenses, so they don&apos;t change profit — income received already leaves
-                  them out.
-                </p>
-              )}
             </Card>
           </div>
 
-          <PnlSankey summary={summary} giveaways={giveaways} />
+          <PnlSankey summary={summary} />
 
           {trend && trend.length > 0 && <PnlTrendChart points={trend} rangeType={range} />}
         </>

@@ -45,21 +45,55 @@ export function complimentaryValue(itemNames: string[], prices: Record<string, n
 }
 
 // What a range's sales gave away: discounts taken off bills, and
-// complimentary bills at menu value. The P&L adds both to sales *and* to
-// expenses — income received already excludes them, so adding them only
-// as an expense would count them twice — leaving profit unchanged.
-export type Giveaways = { discountCents: number; complimentaryCents: number; unpriced: boolean };
+// complimentary bills at menu value. The P&L shows them as deductions from
+// sales at menu price down to net sales (what was received) — revenue not
+// collected, not an expense — so they never touch expenses or profit.
+// One discounted or complimentary bill: who got it, why, and what it was
+// worth (discount taken off, or complimentary dishes at menu value).
+export type GiveawayBill = {
+  date: string;
+  givenTo: string; // "" when not recorded
+  isStaff: boolean;
+  category: string; // "" when not recorded
+  kind: "complimentary" | "discount";
+  itemNames: string[];
+  givenAwayCents: number;
+  receivedCents: number;
+};
+
+export type Giveaways = {
+  discountCents: number;
+  complimentaryCents: number;
+  unpriced: boolean;
+  bills: GiveawayBill[]; // oldest first
+};
 
 export function giveawayTotals(sales: Sale[], prices: Record<string, number>): Giveaways {
-  const out: Giveaways = { discountCents: 0, complimentaryCents: 0, unpriced: false };
+  const out: Giveaways = { discountCents: 0, complimentaryCents: 0, unpriced: false, bills: [] };
   for (const s of sales) {
+    let givenAwayCents: number;
     if (s.is_complimentary) {
       const v = complimentaryValue(s.item_names ?? [], prices);
+      givenAwayCents = v.cents;
       out.complimentaryCents += v.cents;
       out.unpriced ||= v.unpriced;
-    } else {
+    } else if (s.discount_cents > 0) {
+      givenAwayCents = s.discount_cents;
       out.discountCents += s.discount_cents;
+    } else {
+      continue;
     }
+    out.bills.push({
+      date: s.sale_date,
+      givenTo: s.given_to?.trim() ?? "",
+      isStaff: !!s.given_to_employee_id,
+      category: s.discount_reason ?? "",
+      kind: s.is_complimentary ? "complimentary" : "discount",
+      itemNames: s.item_names ?? [],
+      givenAwayCents,
+      receivedCents: s.amount_cents,
+    });
   }
+  out.bills.sort((a, b) => a.date.localeCompare(b.date));
   return out;
 }

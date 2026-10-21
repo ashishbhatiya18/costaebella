@@ -55,8 +55,8 @@ function startSection(doc: jsPDF, title: string, prevY: number): number {
 // One month of the P&L Summary as a PDF — the same figures as the page
 // (GET /api/ledgerly/summary/pnl?range=month plus the month's discounts and
 // complimentary), laid out like Shiftly's payout report. Discounts and
-// complimentary are added to both sales and expenses, so profit is the
-// backend's profit_cents, unchanged.
+// complimentary are deductions from sales at menu price down to net sales
+// (what was received) — revenue not collected, never an expense.
 export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
   const doc = new jsPDF();
   const month = summary.from.slice(0, 7);
@@ -65,15 +65,15 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
   const periodLine = `Period: ${formatDate(summary.from)} - ${formatDate(monthToDate ? today : summary.to)}${monthToDate ? " (month to date)" : ""}`;
   let y = drawReportHeader(doc, `Profit & Loss - ${formatMonthLabel(month)}`, periodLine);
 
-  const giveawayCents = giveaways.discountCents + giveaways.complimentaryCents;
-  // "income" here is gross sales — received plus what was given away.
-  const income = summary.revenue_cents + giveawayCents;
-  const expenses = summary.expenses_cents + giveawayCents;
+  // income is net sales — what was actually received.
+  const income = summary.revenue_cents;
+  const menuSales = income + giveaways.discountCents + giveaways.complimentaryCents;
+  const expenses = summary.expenses_cents;
   const profit = summary.profit_cents;
 
   autoTable(doc, {
     startY: y,
-    head: [["Sales", "Expenses", profit >= 0 ? "Profit" : "Loss", "Margin"]],
+    head: [["Net sales", "Expenses", profit >= 0 ? "Profit" : "Loss", "Margin"]],
     body: [[formatMoney(income), formatMoney(expenses), formatMoney(Math.abs(profit)), pctOfIncome(profit, income)]],
     styles: { fontSize: 10, font: "helvetica", cellPadding: 3, halign: "center" },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold" },
@@ -87,23 +87,45 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
     tableWidth: 182,
   });
 
-  // Sales: received by payment method, then what was given away.
+  // Sales: menu-price sales less what was given away, down to net sales.
   y = startSection(doc, "Sales", y);
+  const salesBody = [
+    ["Sales at menu price", formatMoney(menuSales), pctOfIncome(menuSales, menuSales)],
+    ["Less: discounts given", `- ${formatMoney(giveaways.discountCents)}`, pctOfIncome(giveaways.discountCents, menuSales)],
+    [
+      `Less: complimentary (menu value${giveaways.unpriced ? ", some dishes unpriced" : ""})`,
+      `- ${formatMoney(giveaways.complimentaryCents)}`,
+      pctOfIncome(giveaways.complimentaryCents, menuSales),
+    ],
+    ["Net sales (received)", formatMoney(income), pctOfIncome(income, menuSales)],
+  ];
+  autoTable(doc, {
+    startY: y,
+    head: [["Sales", "Amount", "% of menu price"]],
+    body: salesBody,
+    styles: { fontSize: 9, font: "helvetica", cellPadding: 2.5 },
+    headStyles: { fillColor: GREY, textColor: 255, fontStyle: "bold" },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
+    didParseCell: totalRowStyle(salesBody.length),
+    margin: { left: 14, right: 14 },
+    tableWidth: 182,
+  });
+
+  // Net sales by payment method.
+  y = startSection(doc, "Received by payment method", y);
   const incomeRows: [string, number][] = [
-    ["Received - cash", summary.revenue_cash_cents],
-    ["Received - card", summary.revenue_card_cents],
-    ["Received - UPI", summary.revenue_upi_cents],
-    ["Received - other", summary.revenue_other_cents],
-    ["Discounts given", giveaways.discountCents],
-    ["Complimentary (menu value)", giveaways.complimentaryCents],
+    ["Cash", summary.revenue_cash_cents],
+    ["Card", summary.revenue_card_cents],
+    ["UPI", summary.revenue_upi_cents],
+    ["Other", summary.revenue_other_cents],
   ];
   const incomeBody = incomeRows
     .filter(([, v]) => v !== 0)
     .map(([label, v]) => [label, formatMoney(v), pctOfIncome(v, income)]);
-  incomeBody.push(["Total sales", formatMoney(income), income > 0 ? "100%" : "-"]);
+  incomeBody.push(["Net sales", formatMoney(income), income > 0 ? "100%" : "-"]);
   autoTable(doc, {
     startY: y,
-    head: [["Sales", "Amount", "Share"]],
+    head: [["Payment method", "Amount", "Share"]],
     body: incomeBody,
     styles: { fontSize: 9, font: "helvetica", cellPadding: 2.5 },
     headStyles: { fillColor: GREY, textColor: 255, fontStyle: "bold" },
@@ -114,8 +136,7 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
   });
 
   // Expenses: every non-salary payment category, Pantrly deliveries and
-  // salary earned (what makes up expenses_cents), plus discounts and
-  // complimentary.
+  // salary earned — exactly what makes up expenses_cents.
   y = startSection(doc, "Expenses", y);
   const byCategory = summary.payments_by_category ?? {};
   const expenseRows: [string, number][] = (Object.keys(CATEGORY_LABELS) as Category[])
@@ -123,14 +144,12 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
     .map((c) => [CATEGORY_LABELS[c], byCategory[c] ?? 0]);
   expenseRows.push(["Pantrly deliveries (groceries)", summary.purchases_cents]);
   expenseRows.push(["Salary earned (from attendance)", summary.salary_cents]);
-  if (giveaways.discountCents) expenseRows.push(["Discounts given", giveaways.discountCents]);
-  if (giveaways.complimentaryCents) expenseRows.push(["Complimentary (menu value)", giveaways.complimentaryCents]);
   expenseRows.sort((a, b) => b[1] - a[1]);
   const expenseBody = expenseRows.map(([label, v]) => [label, formatMoney(v), pctOfIncome(v, income)]);
   expenseBody.push(["Total expenses", formatMoney(expenses), pctOfIncome(expenses, income)]);
   autoTable(doc, {
     startY: y,
-    head: [["Expense", "Amount", "% of sales"]],
+    head: [["Expense", "Amount", "% of net sales"]],
     body: expenseBody,
     styles: { fontSize: 9, font: "helvetica", cellPadding: 2.5 },
     headStyles: { fillColor: GREY, textColor: 255, fontStyle: "bold" },
@@ -139,6 +158,89 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
     margin: { left: 14, right: 14 },
     tableWidth: 182,
   });
+
+  // Giveaways: who got discounts / complimentary and why. Same figures as
+  // the "Less:" lines under Sales.
+  if (giveaways.bills.length > 0) {
+    const givenAway = giveaways.discountCents + giveaways.complimentaryCents;
+    type Group = { bills: number; discount: number; complimentary: number; staff: boolean };
+    const add = (m: Map<string, Group>, key: string, b: (typeof giveaways.bills)[number]) => {
+      const g = m.get(key) ?? { bills: 0, discount: 0, complimentary: 0, staff: b.isStaff };
+      g.bills++;
+      if (b.kind === "discount") g.discount += b.givenAwayCents;
+      else g.complimentary += b.givenAwayCents;
+      m.set(key, g);
+    };
+    const recipient = (b: (typeof giveaways.bills)[number]) =>
+      b.givenTo ? `${b.givenTo}${b.isStaff ? " (staff)" : ""}` : "Not recorded";
+    const byCategory = new Map<string, Group>();
+    const byPerson = new Map<string, Group>();
+    const personName = new Map<string, string>();
+    for (const b of giveaways.bills) {
+      add(byCategory, b.category || "Not recorded", b);
+      // Case-insensitive so "Vardha" and "vardha" are one person.
+      const key = recipient(b).toLowerCase();
+      add(byPerson, key, b);
+      if (!personName.has(key)) personName.set(key, recipient(b));
+    }
+    const groupRows = (m: Map<string, Group>, label: (k: string) => string) => {
+      const rows = [...m.entries()]
+        .sort((a, b) => b[1].discount + b[1].complimentary - (a[1].discount + a[1].complimentary))
+        .map(([k, g]) => [label(k), String(g.bills), formatMoney(g.discount), formatMoney(g.complimentary), formatMoney(g.discount + g.complimentary)]);
+      rows.push(["Total", String(giveaways.bills.length), formatMoney(giveaways.discountCents), formatMoney(giveaways.complimentaryCents), formatMoney(givenAway)]);
+      return rows;
+    };
+    const groupTable = (title: string, head: string, rows: string[][]) => {
+      y = startSection(doc, title, y);
+      autoTable(doc, {
+        startY: y,
+        head: [[head, "Bills", "Discounts", "Complimentary", "Total"]],
+        body: rows,
+        styles: { fontSize: 9, font: "helvetica", cellPadding: 2.5 },
+        headStyles: { fillColor: GREY, textColor: 255, fontStyle: "bold" },
+        columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+        didParseCell: totalRowStyle(rows.length),
+        margin: { left: 14, right: 14 },
+        tableWidth: 182,
+      });
+    };
+    groupTable("Giveaways by category", "Category", groupRows(byCategory, (k) => k));
+    groupTable("Giveaways by person", "Given to", groupRows(byPerson, (k) => personName.get(k) ?? k));
+
+    y = startSection(doc, "Giveaway bills", y);
+    const billRows = giveaways.bills.map((b) => {
+      const counts = new Map<string, number>();
+      for (const n of b.itemNames) counts.set(n, (counts.get(n) ?? 0) + 1);
+      const dishes = [...counts.entries()].map(([n, q]) => (q > 1 ? `${n} x${q}` : n)).join(", ");
+      return [
+        formatDate(b.date),
+        recipient(b),
+        b.category || "-",
+        b.kind === "complimentary" ? "Complimentary" : "Discount",
+        dishes || "-",
+        formatMoney(b.givenAwayCents),
+        formatMoney(b.receivedCents),
+      ];
+    });
+    autoTable(doc, {
+      startY: y,
+      head: [["Date", "Given to", "Category", "Type", "Dishes", "Given away", "Received"]],
+      body: billRows,
+      styles: { fontSize: 7.5, font: "helvetica", cellPadding: 2, overflow: "linebreak" },
+      headStyles: { fillColor: GREY, textColor: 255, fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 19 },
+        1: { cellWidth: 29 },
+        2: { cellWidth: 23 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 44 },
+        5: { cellWidth: 21, halign: "right" },
+        6: { cellWidth: 21, halign: "right" },
+      },
+      margin: { left: 14, right: 14 },
+      tableWidth: 182,
+    });
+  }
 
   // Salary paid out — reference only, it settles the salary earned above.
   y = startSection(doc, "Salary paid out (not added to expenses)", y);
@@ -175,7 +277,7 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
     itemBody.push(["Total", String([...byItem.values()].reduce((s, r) => s + r.deliveries, 0)), formatMoney(summary.purchases_cents), pctOfIncome(summary.purchases_cents, income)]);
     autoTable(doc, {
       startY: y,
-      head: [["Item", "Deliveries", "Cost", "% of sales"]],
+      head: [["Item", "Deliveries", "Cost", "% of net sales"]],
       body: itemBody,
       styles: { fontSize: 8, font: "helvetica", cellPadding: 2 },
       headStyles: { fillColor: GREY, textColor: 255, fontStyle: "bold" },
@@ -196,7 +298,7 @@ export function buildPnlReportPdf(summary: PnlSummary, giveaways: Giveaways) {
   doc.setFont("helvetica", "italic");
   doc.setTextColor(90);
   const notes = [
-    `Sales are what was received plus discounts given and complimentary bills at menu price${giveaways.unpriced ? " (some complimentary dishes have no menu price and are left out)" : ""}. Discounts and complimentary are added to both sales and expenses, so they don't change profit; their ingredient cost is already in Pantrly deliveries.`,
+    `Net sales is what was actually received. Discounts and complimentary bills (at menu price${giveaways.unpriced ? "; dishes with no menu price are left out" : ""}) are sales not collected, so they are deducted from sales at menu price rather than counted as expenses. Their ingredient cost is already in Pantrly deliveries.`,
     "Salary is counted as earned from Shiftly attendance for the days in this period. Salary payments and advances are money paid out against that salary, so they are shown for reference and not added again.",
     "Groceries are Pantrly deliveries with a cost recorded. Supplier purchase payments are listed separately; a delivery recorded in both places is counted twice.",
   ];

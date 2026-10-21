@@ -53,6 +53,11 @@ export type Sale = {
   discount_reason: string;
   // Free bill: amount is 0, but its dishes still count toward stock use.
   is_complimentary: boolean;
+  // Who a discount / complimentary was given to. For staff,
+  // given_to_employee_id links the Shiftly employee and given_to is their
+  // name; for anyone else given_to is the typed name and the id is null.
+  given_to: string;
+  given_to_employee_id: string | null;
 };
 
 // A costed Pantrly delivery (GET /api/ledgerly/purchases). Read-only on the
@@ -148,6 +153,8 @@ export const api = {
     discount_cents?: number;
     discount_reason?: string;
     is_complimentary?: boolean;
+    given_to?: string;
+    given_to_employee_id?: string | null;
   }) =>
     request<Sale>("/api/ledgerly/revenue/sales", {
       method: "POST",
@@ -158,6 +165,16 @@ export const api = {
     const q = new URLSearchParams({ from: params.from, to: params.to });
     return request<Sale[]>(`/api/ledgerly/revenue/sales?${q.toString()}`);
   },
+
+  // Sets who an existing discount / complimentary bill was given to.
+  updateSaleRecipient: (id: string, body: { given_to?: string; given_to_employee_id?: string | null }) =>
+    request<Sale>(`/api/ledgerly/revenue/sales/${id}/recipient`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  // Past non-staff recipient names, most recent first — for suggestions.
+  listRecipientNames: () => request<string[]>("/api/ledgerly/revenue/recipients"),
 
   deleteSale: (id: string) =>
     request<void>(`/api/ledgerly/revenue/sales/${id}`, { method: "DELETE" }),

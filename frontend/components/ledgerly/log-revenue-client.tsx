@@ -2,6 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, Sale } from "@/lib/ledgerly/api";
+import { api as shiftlyApi, Employee } from "@/lib/shiftly/api";
+import {
+  COMPLIMENTARY_CATEGORIES,
+  DISCOUNT_CATEGORIES,
+  OTHER_CATEGORY,
+  RecipientType,
+  STAFF_CATEGORIES,
+} from "@/lib/ledgerly/giveaways";
 import { Card } from "@/components/admin/ui/card";
 import { Button } from "@/components/admin/ui/button";
 import { SplitButton } from "@/components/admin/ui/split-button";
@@ -37,26 +45,6 @@ function groupItemNames(names: string[]): { name: string; quantity: number }[] {
   return [...counts.entries()].map(([name, quantity]) => ({ name, quantity }));
 }
 
-// Common reasons offered in the reason dropdown; "Other" switches to a
-// free-text field. The stored reason is always the plain text.
-const OTHER_REASON = "__other__";
-const COMPLIMENTARY_REASONS = [
-  "Owner's guest",
-  "Friends & family",
-  "Staff meal",
-  "Regular customer",
-  "Complaint / service recovery",
-  "Promotion / tasting",
-];
-const DISCOUNT_REASONS = [
-  "Regular customer",
-  "Friends & family",
-  "Staff discount",
-  "Offer / promotion",
-  "Complaint / service recovery",
-  "Bill rounded off",
-];
-
 export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   usePageTitle("Log Income");
   const [date, setDate] = useState(todayStr());
@@ -68,6 +56,11 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   const [reasonChoice, setReasonChoice] = useState("");
   const [saleReason, setSaleReason] = useState("");
   const [complimentary, setComplimentary] = useState(false);
+  const [recipientType, setRecipientType] = useState<RecipientType>("other");
+  const [recipientEmployeeId, setRecipientEmployeeId] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [pastRecipients, setPastRecipients] = useState<string[]>([]);
   const [salePaymentMethod, setSalePaymentMethod] = useState("cash");
   const [saleNotes, setSaleNotes] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
@@ -130,6 +123,17 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
   }
 
   useEffect(() => {
+    shiftlyApi
+      .listEmployees()
+      .then((data) => setEmployees((data ?? []).filter((e) => e.active)))
+      .catch(() => setEmployees([]));
+    api
+      .listRecipientNames()
+      .then((data) => setPastRecipients(data ?? []))
+      .catch(() => setPastRecipients([]));
+  }, []);
+
+  useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
@@ -180,9 +184,16 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
         return;
       }
     }
-    const reason = reasonChoice === OTHER_REASON ? saleReason.trim() : reasonChoice;
-    if ((complimentary || discountCents > 0) && !reason) {
-      setError(complimentary ? "Choose a reason for the complimentary." : "Choose a reason for the discount.");
+    const isGiveaway = complimentary || discountCents > 0;
+    const reason = reasonChoice === OTHER_CATEGORY ? saleReason.trim() : reasonChoice;
+    if (isGiveaway && !reason) {
+      setError(complimentary ? "Choose a category for the complimentary." : "Choose a category for the discount.");
+      return;
+    }
+    const givenToEmployeeId = recipientType === "staff" ? recipientEmployeeId : "";
+    const givenTo = recipientType === "other" ? recipientName.trim() : "";
+    if (isGiveaway && !givenToEmployeeId && !givenTo) {
+      setError(recipientType === "staff" ? "Choose which staff member it was given to." : "Enter who it was given to.");
       return;
     }
     const itemNames = expandItemNames(selectedItems);
@@ -202,14 +213,20 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
         notes,
         item_names: itemNames,
         discount_cents: discountCents,
-        discount_reason: complimentary || discountCents > 0 ? reason : "",
+        discount_reason: isGiveaway ? reason : "",
         is_complimentary: complimentary,
+        given_to: isGiveaway ? givenTo : "",
+        given_to_employee_id: isGiveaway && givenToEmployeeId ? givenToEmployeeId : null,
       });
+      if (givenTo && !pastRecipients.includes(givenTo)) setPastRecipients([givenTo, ...pastRecipients]);
       setSaleAmount("");
       setSaleDiscount("");
       setReasonChoice("");
       setSaleReason("");
       setComplimentary(false);
+      setRecipientType("other");
+      setRecipientEmployeeId("");
+      setRecipientName("");
       setSaleNotes("");
       setSelectedItems({});
       await refresh();
@@ -286,8 +303,8 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                 checked={complimentary}
                 onChange={(e) => {
                   setComplimentary(e.target.checked);
-                  // The two reason lists differ, so a pick from one may not exist in the other.
-                  if (reasonChoice !== OTHER_REASON) setReasonChoice("");
+                  // The two category lists differ, so a pick from one may not exist in the other.
+                  if (reasonChoice !== OTHER_CATEGORY) setReasonChoice("");
                 }}
                 className="h-4 w-4 accent-teal"
               />
@@ -345,35 +362,94 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
             )}
 
             {needsReason && (
+              <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="sale-reason">
-                  {complimentary ? "Reason for complimentary" : "Reason for discount"}
+                  {complimentary ? "Complimentary category" : "Discount category"}
                 </Label>
                 <select
                   id="sale-reason"
                   value={reasonChoice}
-                  onChange={(e) => setReasonChoice(e.target.value)}
+                  onChange={(e) => {
+                    setReasonChoice(e.target.value);
+                    if (STAFF_CATEGORIES.includes(e.target.value)) setRecipientType("staff");
+                  }}
                   required
                   className="w-full rounded-xl border border-navy/15 bg-cream/40 px-3.5 py-2.5 text-sm text-navy outline-none transition-colors focus:border-teal focus:ring-2 focus:ring-teal/20"
                 >
-                  <option value="">Select a reason…</option>
-                  {(complimentary ? COMPLIMENTARY_REASONS : DISCOUNT_REASONS).map((r) => (
+                  <option value="">Select a category…</option>
+                  {(complimentary ? COMPLIMENTARY_CATEGORIES : DISCOUNT_CATEGORIES).map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
                   ))}
-                  <option value={OTHER_REASON}>Other (type it)</option>
+                  <option value={OTHER_CATEGORY}>Other (type it)</option>
                 </select>
-                {reasonChoice === OTHER_REASON && (
+                {reasonChoice === OTHER_CATEGORY && (
                   <Input
                     className="mt-2"
                     value={saleReason}
                     onChange={(e) => setSaleReason(e.target.value)}
-                    placeholder="Type the reason"
-                    aria-label="Reason"
+                    placeholder="Type the category"
+                    aria-label="Category"
                     required
                   />
                 )}
+              </div>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label htmlFor="sale-given-to" className="text-sm font-medium text-navy/70">
+                    Given to
+                  </label>
+                  <div className="inline-flex rounded-lg border border-navy/10 bg-cream/60 p-0.5 text-xs">
+                    {(["staff", "other"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRecipientType(t)}
+                        className={clsx(
+                          "rounded-md px-2.5 py-1 font-medium transition-colors",
+                          recipientType === t ? "bg-teal text-white shadow-sm" : "text-navy/60 hover:text-navy",
+                        )}
+                      >
+                        {t === "staff" ? "Staff" : "Other"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {recipientType === "staff" ? (
+                  <select
+                    id="sale-given-to"
+                    value={recipientEmployeeId}
+                    onChange={(e) => setRecipientEmployeeId(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-navy/15 bg-cream/40 px-3.5 py-2.5 text-sm text-navy outline-none transition-colors focus:border-teal focus:ring-2 focus:ring-teal/20"
+                  >
+                    <option value="">Select a staff member…</option>
+                    {employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <Input
+                      id="sale-given-to"
+                      list="sale-given-to-names"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      placeholder="Name of the person or group"
+                      required
+                    />
+                    <datalist id="sale-given-to-names">
+                      {pastRecipients.map((n) => (
+                        <option key={n} value={n} />
+                      ))}
+                    </datalist>
+                  </>
+                )}
+              </div>
               </div>
             )}
 
@@ -501,8 +577,11 @@ export function LogRevenueClient({ menuItems }: { menuItems: string[] }) {
                   {(s.is_complimentary || s.discount_cents > 0) && (
                     <p className="mt-1 text-xs text-navy/60">
                       {s.discount_cents > 0 &&
-                        `Total ${formatINR(s.amount_cents + s.discount_cents)}, discount ${formatINR(s.discount_cents)}`}
-                      {s.discount_reason && `${s.discount_cents > 0 ? " — " : "Reason: "}${s.discount_reason}`}
+                        `Total ${formatINR(s.amount_cents + s.discount_cents)}, discount ${formatINR(s.discount_cents)} · `}
+                      {s.discount_reason || "No category"}
+                      {" · to "}
+                      {s.given_to || "unknown"}
+                      {s.given_to_employee_id && " (staff)"}
                     </p>
                   )}
                   {s.item_names?.length > 0 && (

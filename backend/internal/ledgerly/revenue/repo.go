@@ -6,10 +6,33 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var errSaleNotFound = errors.New("sale not found")
+var (
+	errSaleNotFound    = errors.New("sale not found")
+	errUnknownEmployee = errors.New("unknown employee")
+)
+
+// asEmployeeErr maps a bad given_to_employee_id (malformed UUID or no such
+// employee) to errUnknownEmployee so the handler can answer 400, not 500.
+func asEmployeeErr(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == "23503" || pgErr.Code == "22P02") {
+		return errUnknownEmployee
+	}
+	return err
+}
+
+// saleColumns is the SELECT list every sale read shares. given_to prefers
+// the linked employee's current name (so a rename in Shiftly shows up),
+// falling back to the stored text — the name snapshot taken when logged,
+// or the free-text name for a non-staff recipient.
+const saleColumns = `
+	s.id, s.sale_date::text, s.amount_cents, s.payment_method, s.notes, s.logged_by,
+	s.discount_cents, s.discount_reason, s.is_complimentary,
+	COALESCE(e.name, s.given_to), s.given_to_employee_id::text`
 
 type Repo struct {
 	pool *pgxpool.Pool
@@ -26,19 +49,26 @@ func (r *Repo) InsertSale(ctx context.Context, req SaleRequest, loggedBy string)
 	}
 	defer tx.Rollback(ctx)
 
+	// For a staff recipient, given_to stores a snapshot of the employee's
+	// name so it survives the employee row being deleted.
 	var s Sale
 	err = tx.QueryRow(ctx, `
 		INSERT INTO ledgerly_sales (sale_date, amount_cents, payment_method, notes, logged_by,
-		                            discount_cents, discount_reason, is_complimentary)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		                            discount_cents, discount_reason, is_complimentary,
+		                            given_to, given_to_employee_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+		        COALESCE((SELECT name FROM employees WHERE id = $10::uuid), $9), $10::uuid)
 		RETURNING id, sale_date::text, amount_cents, payment_method, notes, logged_by,
-		          discount_cents, discount_reason, is_complimentary`,
+		          discount_cents, discount_reason, is_complimentary,
+		          given_to, given_to_employee_id::text`,
 		req.SaleDate, req.AmountCents, req.PaymentMethod, req.Notes, loggedBy,
-		req.DiscountCents, req.DiscountReason, req.IsComplimentary).Scan(
+		req.DiscountCents, req.DiscountReason, req.IsComplimentary,
+		req.GivenTo, req.GivenToEmployeeID).Scan(
 		&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy,
-		&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary)
+		&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary,
+		&s.GivenTo, &s.GivenToEmployeeID)
 	if err != nil {
-		return nil, fmt.Errorf("insert sale: %w", err)
+		return nil, fmt.Errorf("insert sale: %w", asEmployeeErr(err))
 	}
 
 	for _, name := range req.ItemNames {
@@ -68,15 +98,76 @@ func (r *Repo) DeleteSale(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *Repo) ListSales(ctx context.Context, from, to string) ([]Sale, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT s.id, s.sale_date::text, s.amount_cents, s.payment_method, s.notes, s.logged_by,
-		       s.discount_cents, s.discount_reason, s.is_complimentary,
+// UpdateRecipient sets who a discount / complimentary bill was given to,
+// the same way InsertSale stores it. Only giveaway bills can carry one.
+func (r *Repo) UpdateRecipient(ctx context.Context, id string, req RecipientRequest) (*Sale, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE ledgerly_sales
+		SET given_to = COALESCE((SELECT name FROM employees WHERE id = $3::uuid), $2),
+		    given_to_employee_id = $3::uuid
+		WHERE id = $1 AND (is_complimentary OR discount_cents > 0)`,
+		id, req.GivenTo, req.GivenToEmployeeID)
+	if err != nil {
+		return nil, fmt.Errorf("update sale recipient: %w", asEmployeeErr(err))
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, errSaleNotFound
+	}
+	return r.getSale(ctx, id)
+}
+
+func (r *Repo) getSale(ctx context.Context, id string) (*Sale, error) {
+	var s Sale
+	err := r.pool.QueryRow(ctx, `
+		SELECT `+saleColumns+`,
 		       COALESCE(array_agg(si.item_name) FILTER (WHERE si.item_name IS NOT NULL), '{}')
 		FROM ledgerly_sales s
+		LEFT JOIN employees e ON e.id = s.given_to_employee_id
+		LEFT JOIN ledgerly_sale_items si ON si.sale_id = s.id
+		WHERE s.id = $1
+		GROUP BY s.id, e.name`, id).Scan(
+		&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy,
+		&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary,
+		&s.GivenTo, &s.GivenToEmployeeID, &s.ItemNames)
+	if err != nil {
+		return nil, fmt.Errorf("get sale: %w", err)
+	}
+	return &s, nil
+}
+
+// RecipientNames lists the distinct non-staff names giveaways have been
+// given to, most recently used first — offered as suggestions so the same
+// person is typed the same way each time.
+func (r *Repo) RecipientNames(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT given_to FROM ledgerly_sales
+		WHERE given_to <> '' AND given_to_employee_id IS NULL
+		GROUP BY given_to
+		ORDER BY MAX(created_at) DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("query recipient names: %w", err)
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scan recipient name: %w", err)
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repo) ListSales(ctx context.Context, from, to string) ([]Sale, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+saleColumns+`,
+		       COALESCE(array_agg(si.item_name) FILTER (WHERE si.item_name IS NOT NULL), '{}')
+		FROM ledgerly_sales s
+		LEFT JOIN employees e ON e.id = s.given_to_employee_id
 		LEFT JOIN ledgerly_sale_items si ON si.sale_id = s.id
 		WHERE s.sale_date BETWEEN $1 AND $2
-		GROUP BY s.id
+		GROUP BY s.id, e.name
 		ORDER BY s.sale_date DESC, s.created_at DESC`, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("query sales: %w", err)
@@ -87,7 +178,8 @@ func (r *Repo) ListSales(ctx context.Context, from, to string) ([]Sale, error) {
 	for rows.Next() {
 		var s Sale
 		if err := rows.Scan(&s.ID, &s.SaleDate, &s.AmountCents, &s.PaymentMethod, &s.Notes, &s.LoggedBy,
-			&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary, &s.ItemNames); err != nil {
+			&s.DiscountCents, &s.DiscountReason, &s.IsComplimentary,
+			&s.GivenTo, &s.GivenToEmployeeID, &s.ItemNames); err != nil {
 			return nil, fmt.Errorf("scan sale: %w", err)
 		}
 		out = append(out, s)

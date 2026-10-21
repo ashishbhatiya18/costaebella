@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api as ledgerlyApi, Sale } from "@/lib/ledgerly/api";
 import { api as menulyApi, CompositionEntry } from "@/lib/menuly/api";
 import { api as pantrlyApi, ItemStock } from "@/lib/pantrly/api";
@@ -17,14 +18,7 @@ type DishStats = {
   grossSalesCents: number;
 };
 
-type CompDish = {
-  name: string;
-  quantity: number;
-  // null when the dish has no price in menu.yaml (e.g. renamed since).
-  menuValueCents: number | null;
-};
-
-export function MenulyAnalyticsClient({ prices }: { prices: Record<string, number> }) {
+export function MenulyAnalyticsClient() {
   usePageTitle("Menu Analytics");
   const [from, setFrom] = useState(() => monthRange(todayStr()).from);
   const [to, setTo] = useState(() => monthRange(todayStr()).to);
@@ -77,37 +71,6 @@ export function MenulyAnalyticsClient({ prices }: { prices: Record<string, numbe
       untaggedCount: untagged,
     };
   }, [sales]);
-
-  // Complimentary bills bring in ₹0 but still use stock — count what was
-  // given free per dish and value it at menu price. Discounts are per
-  // bill (not per dish), so they're listed bill by bill.
-  const giveaways = useMemo(() => {
-    const byName = new Map<string, number>();
-    let compBills = 0;
-    for (const s of sales) {
-      if (!s.is_complimentary) continue;
-      compBills++;
-      for (const name of s.item_names ?? []) byName.set(name, (byName.get(name) ?? 0) + 1);
-    }
-    const compDishes: CompDish[] = [...byName.entries()]
-      .map(([name, quantity]) => ({
-        name,
-        quantity,
-        menuValueCents: prices[name] != null ? Math.round(prices[name] * 100) * quantity : null,
-      }))
-      .sort((a, b) => b.quantity - a.quantity);
-
-    const discounted = sales.filter((s) => !s.is_complimentary && s.discount_cents > 0);
-    return {
-      compBills,
-      compDishes,
-      compDishCount: compDishes.reduce((sum, d) => sum + d.quantity, 0),
-      compValueCents: compDishes.reduce((sum, d) => sum + (d.menuValueCents ?? 0), 0),
-      compUnpriced: compDishes.some((d) => d.menuValueCents == null),
-      discounted,
-      discountCents: discounted.reduce((sum, s) => sum + s.discount_cents, 0),
-    };
-  }, [sales, prices]);
 
   // Expected consumption per Pantrly item = sum over every tagged dish of
   // (orders for that dish × its recipe quantity_per_order), compared
@@ -204,102 +167,13 @@ export function MenulyAnalyticsClient({ prices }: { prices: Record<string, numbe
         </Card>
       )}
 
-      <div className="mt-8 mb-4">
-        <h2 className="font-display text-xl text-navy">Complimentary &amp; Discounts</h2>
-        <p className="mt-1 text-sm text-navy/60">
-          What was given away in this range — free dishes valued at menu price, and discounts taken off
-          bills. Neither is counted as income; complimentary dishes are included in the expected
-          ingredient usage below.
-        </p>
-      </div>
-
-      {!loading && (
-        <>
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-navy/50">Complimentary dishes</p>
-              <p className="mt-1 text-xl font-semibold text-navy">{giveaways.compDishCount}</p>
-              <p className="text-xs text-navy/50">
-                across {giveaways.compBills} bill{giveaways.compBills === 1 ? "" : "s"}
-              </p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-navy/50">Complimentary value</p>
-              <p className="mt-1 text-xl font-semibold text-navy">{formatINR(giveaways.compValueCents)}</p>
-              <p className="text-xs text-navy/50">
-                at menu price{giveaways.compUnpriced && " (some dishes unpriced)"}
-              </p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-navy/50">Discounts given</p>
-              <p className="mt-1 text-xl font-semibold text-navy">{formatINR(giveaways.discountCents)}</p>
-              <p className="text-xs text-navy/50">
-                on {giveaways.discounted.length} bill{giveaways.discounted.length === 1 ? "" : "s"}
-              </p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-navy/50">Total given away</p>
-              <p className="mt-1 text-xl font-semibold text-navy">
-                {formatINR(giveaways.compValueCents + giveaways.discountCents)}
-              </p>
-            </Card>
-          </div>
-
-          {giveaways.compDishes.length === 0 ? (
-            <Card className="p-10 text-center text-navy/50">No complimentary dishes in this range.</Card>
-          ) : (
-            <Card className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-navy/10 text-left text-xs uppercase tracking-wide text-navy/50">
-                    <th className="px-5 py-3">Complimentary dish</th>
-                    <th className="px-5 py-3">Given free</th>
-                    <th className="px-5 py-3">Menu value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {giveaways.compDishes.map((d) => (
-                    <tr key={d.name} className="border-b border-navy/5 last:border-0">
-                      <td className="px-5 py-3 font-medium text-navy">{d.name}</td>
-                      <td className="px-5 py-3 text-navy/70">{d.quantity}</td>
-                      <td className="px-5 py-3 text-navy/70">
-                        {d.menuValueCents != null ? formatINR(d.menuValueCents) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
-
-          {giveaways.discounted.length > 0 && (
-            <Card className="mt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-navy/10 text-left text-xs uppercase tracking-wide text-navy/50">
-                    <th className="px-5 py-3">Date</th>
-                    <th className="px-5 py-3">Total amount</th>
-                    <th className="px-5 py-3">Discount</th>
-                    <th className="px-5 py-3">Received</th>
-                    <th className="px-5 py-3">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {giveaways.discounted.map((s) => (
-                    <tr key={s.id} className="border-b border-navy/5 last:border-0">
-                      <td className="px-5 py-3 text-navy/70">{s.sale_date}</td>
-                      <td className="px-5 py-3 text-navy/70">{formatINR(s.amount_cents + s.discount_cents)}</td>
-                      <td className="px-5 py-3 font-medium text-navy">{formatINR(s.discount_cents)}</td>
-                      <td className="px-5 py-3 text-navy/70">{formatINR(s.amount_cents)}</td>
-                      <td className="px-5 py-3 text-navy/70">{s.discount_reason}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
-        </>
-      )}
+      <p className="mt-4 text-xs text-navy/60">
+        Discounts and complimentary bills — by category and by who they were given to — are on Ledgerly&apos;s{" "}
+        <Link href="/ledgerly/dashboard/giveaways" className="font-medium text-teal hover:underline">
+          Giveaways
+        </Link>{" "}
+        page. Complimentary dishes still count toward the expected ingredient usage below.
+      </p>
 
       <div className="mt-8 mb-4">
         <h2 className="font-display text-xl text-navy">Consumption Reconciliation</h2>
